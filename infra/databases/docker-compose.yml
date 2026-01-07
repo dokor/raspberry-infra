@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  db-main:
+    image: mariadb:10.11
+    container_name: db-main
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_MAIN_ROOT_PASSWORD}
+    volumes:
+      - db_main_data:/var/lib/mysql
+    networks:
+      - db-main
+
+  db-secure:
+    image: mariadb:10.11
+    container_name: db-secure
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_SECURE_ROOT_PASSWORD}
+    volumes:
+      - db_secure_data:/var/lib/mysql
+    networks:
+      - java-secure
+
+volumes:
+  db_main_data:
+  db_secure_data:
+
+networks:
+  db-main:
+    name: db-main
+  java-secure:
+    name: java-secure-net

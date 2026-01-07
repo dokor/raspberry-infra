@@ -1,0 +1,26 @@
+name: Deploy infra proxy (Traefik)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "infra/proxy/**"
+      - ".github/workflows/deploy-proxy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - raspberry
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Traefik reverse proxy
+        working-directory: infra/proxy
+        run: |
+          [ -f acme.json ] || touch acme.json
+          chmod 600 acme.json
+          docker compose up -d --build --remove-orphans

@@ -1,0 +1,24 @@
+name: Deploy infra databases
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "infra/databases/**"
+      - ".github/workflows/deploy-databases.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - raspberry
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy databases
+        working-directory: infra/databases
+        run: |
+          docker compose up -d --build --remove-orphans
