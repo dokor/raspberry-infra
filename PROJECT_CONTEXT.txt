@@ -1,0 +1,55 @@
+Je travaille sur un homelab basé sur un Raspberry Pi 5.
+
+Contexte technique (important) :
+- OS : Debian / Raspberry Pi OS 64 bits
+- Docker installé (version récente, OK)
+- Docker Compose utilisé partout
+- Traefik v3.x comme reverse proxy unique (ports 80/443)
+- Réseau Docker externe : `proxy`
+- Pas d’exposition directe de ports applicatifs
+- Pas de `.env` versionné (config directement dans les compose ou fichiers locaux)
+- GitHub Actions avec un runner self-hosted installé sur le Raspberry
+- Le runner déploie toujours depuis `/srv/apps/<project>` (git pull + docker compose up)
+- Aucun registry Docker externe utilisé
+- Stack infra séparée dans un repo `raspberry-infra`
+- Stack monitoring (Grafana / Prometheus) déjà en place
+- Sécurité de base activée (UFW + Fail2ban)
+
+Organisation sur le Raspberry :
+/srv/
+  ├─ infra/raspberry-infra/
+  ├─ apps/
+  │   ├─ projets Docker (un dossier par projet)
+  └─ backups/
+
+Méthode de déploiement standard :
+- Chaque projet a son propre repo GitHub
+- Chaque projet a son propre docker-compose.yml
+- Un push sur `main` déclenche un déploiement automatique via GitHub Actions
+- Le workflow fait :
+  cd /srv/apps/<project>
+  git fetch --all
+  git reset --hard origin/main
+  docker compose up -d --build --remove-orphans
+
+Types de projets à déployer :
+- Backends Java (Java 17, Maven, jar-with-dependencies, pas Spring)
+- Applications Next.js
+- Sites vitrines (HTML / Nginx)
+- WordPress + MariaDB
+
+Contraintes importantes :
+- Raspberry Pi 5 (ARM64)
+- Priorité à la simplicité, robustesse et lisibilité
+- Pas de Kubernetes
+- Pas de cloud externe
+- Pas de solutions lourdes
+- Préférer des solutions reproductibles et documentées
+
+Ce que j’attends de toi :
+- Des réponses orientées architecture + pratique
+- Des exemples concrets (Dockerfile, docker-compose, workflows GitHub)
+- Des choix expliqués (pourquoi cette solution plutôt qu’une autre)
+- Des solutions adaptées au Raspberry Pi (performance, RAM, ARM)
+
+À partir de maintenant, considère que tout ce contexte est acquis.
