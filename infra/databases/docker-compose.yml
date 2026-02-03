@@ -13,6 +13,7 @@ services:
       - db_main_data:/var/lib/mysql
     networks:
       - db-main
+      - proxy
 
   db-secure:
     image: mariadb:10.11
@@ -34,5 +35,9 @@ volumes:
 networks:
   db-main:
     name: db-main
+  proxy:
+    external: true
   java-secure:
     name: java-secure-net
+    
+
