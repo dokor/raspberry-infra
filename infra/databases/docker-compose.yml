@@ -1,43 +1,37 @@
-version: "3.8"
-
 services:
-  db-main:
+  mariadb:
     image: mariadb:10.11
-    container_name: db-main
+    container_name: mariadb
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - MYSQL_ROOT_PASSWORD=${DB_MAIN_ROOT_PASSWORD}
-    volumes:
-      - db_main_data:/var/lib/mysql
-    networks:
-      - db-main
-      - proxy
 
-  db-secure:
-    image: mariadb:10.11
-    container_name: db-secure
-    restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_SECURE_ROOT_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: argos
+      MARIADB_USER: argos_user
+      MARIADB_PASSWORD: ${ARGOS_DB_PASSWORD}
+
     volumes:
-      - db_secure_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
+
     networks:
-      - java-secure
+      - data
+
+    # IMPORTANT: ne pas exposer 3306
+    # ports:
+    #   - "3306:3306"
+
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-p${MARIADB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  db_main_data:
-  db_secure_data:
+  mariadb_data:
 
 networks:
-  db-main:
-    name: db-main
+  # réseau DB (interne docker)
+  data:
+    name: argos-data
   proxy:
     external: true
-  java-secure:
-    name: java-secure-net
-    
-
