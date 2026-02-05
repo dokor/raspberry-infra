@@ -1,26 +1,22 @@
 version: "3.8"
 
 services:
-  portainer:
-      image: portainer/portainer-ce:latest
-      container_name: portainer
-      restart: unless-stopped
-      command: -H unix:///var/run/docker.sock
-      networks:
-        - proxy
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock:ro
-        - portainer_data:/data
-      labels:
-        - traefik.enable=true
-        - traefik.http.routers.portainer.rule=Host(`portainer.argos.tld`)
-        - traefik.http.routers.portainer.entrypoints=websecure
-        - traefik.http.routers.portainer.tls=true
-        - traefik.http.services.portainer.loadbalancer.server.port=9000
-  
-        # (optionnel mais conseillé) : protéger avec basic auth Traefik
-        # - traefik.http.routers.portainer.middlewares=portainer-auth
-        # - traefik.http.middlewares.portainer-auth.basicauth.users=admin:$$apr1$$...hash...
+portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - "${PORTAINER_PORT}:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/portainer:/data
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/api/status >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
 
         
   traefik:
@@ -55,12 +51,9 @@ services:
       - "traefik.http.routers.traefik-dashboard.entrypoints=web"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
 
-
-volumes:
-  portainer_data:
-
 networks:
   proxy:
     external: true
     name: proxy
+
 
