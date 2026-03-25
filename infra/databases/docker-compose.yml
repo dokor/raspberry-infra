@@ -1,38 +1,42 @@
 services:
-  mariadb:
-    image: mariadb:10.11
-    container_name: mariadb
+  mariadb-private:
+    image: mariadb:11.4
+    container_name: mariadb-private
     restart: unless-stopped
-
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
-      MARIADB_DATABASE: argos
-      MARIADB_USER: argos_user
-      MARIADB_PASSWORD: ${ARGOS_DB_PASSWORD}
-
+      MARIADB_ROOT_PASSWORD: "${MARIADB_PRIVATE_ROOT_PASSWORD}"
+      MARIADB_DATABASE: "${MARIADB_PRIVATE_DATABASE}"
+      MARIADB_USER: "${MARIADB_PRIVATE_USER}"
+      MARIADB_PASSWORD: "${MARIADB_PRIVATE_PASSWORD}"
     volumes:
-      - mariadb_data:/var/lib/mysql
-
+      - mariadb-private-data:/var/lib/mysql
     networks:
-      - data
+      - mariadb-private
 
-    # IMPORTANT: ne pas exposer 3306
+  mariadb-public:
+    image: mariadb:11.4
+    container_name: mariadb-public
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: "${MARIADB_PUBLIC_ROOT_PASSWORD}"
+      MARIADB_DATABASE: "${MARIADB_PUBLIC_DATABASE}"
+      MARIADB_USER: "${MARIADB_PUBLIC_USER}"
+      MARIADB_PASSWORD: "${MARIADB_PUBLIC_PASSWORD}"
+    volumes:
+      - mariadb-data:/var/lib/mysql
     ports:
-      - "127.0.0.1:3306:3306"
-
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-p${MARIADB_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  mariadb_data:
+      - "3306:3306"
+    networks:
+      - mariadb-public
 
 networks:
-  # réseau DB (interne docker)
-  data:
-    name: argos-data
-  proxy:
-    external: true
+  mariadb-public:
+    name: mariadb-public
+  mariadb-private:
+    name: mariadb-private
 
+volumes:
+  mariadb-private-data:
+    name: mariadb-private-data
+  mariadb-data:
+    name: mariadb-data
