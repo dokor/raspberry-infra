@@ -32,8 +32,11 @@ services:
 networks:
   mariadb-public:
     name: mariadb-public
+    external: true 
+    
   mariadb-private:
     name: mariadb-private
+    external: true 
 
 volumes:
   mariadb-private-data:
