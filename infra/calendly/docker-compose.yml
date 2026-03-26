@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: calcom-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    networks:
+      - calcom
+
+  calcom:
+    image: calcom/cal.com:v5.6.19-arm
+    container_name: calcom
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3020:3020"
+    networks:
+      - calcom
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.calcom.rule=Host(`cal.lelouet.fr`)
+      - traefik.http.routers.calcom.entrypoints=websecure
+      - traefik.http.routers.calcom.tls.certresolver=letsencrypt
+      - traefik.http.services.calcom.loadbalancer.server.port=3020
+
+networks:
+  calcom:
+  proxy:
+    external: true
