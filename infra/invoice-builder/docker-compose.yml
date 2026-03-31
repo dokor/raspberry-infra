@@ -1,0 +1,49 @@
+services:
+  invoice-builder-backend:
+    image: ghcr.io/piratuks/invoice-builder:latest
+    container_name: invoice-builder-backend
+    restart: unless-stopped
+    environment:
+      SERVICE: backend
+      NODE_ENV: docker
+      DB_DIRECTORY: /data
+      PORT: 3000
+      DEV_SERVER_URL: 0.0.0.0
+      FE_SERVER_URL: http://localhost:8086
+      MIGRATIONS_PATH: /app/dist-be/backend/server/shared/migrations
+    volumes:
+      - ./data:/data
+    networks:
+      - invoice-builder
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const net=require('net');const c=net.createConnection(3000,'localhost');c.on('connect',()=>{c.destroy();process.exit(0)});c.on('error',()=>process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  invoice-builder-frontend:
+    image: ghcr.io/piratuks/invoice-builder:latest
+    container_name: invoice-builder-frontend
+    restart: unless-stopped
+    environment:
+      SERVICE: frontend
+      BACKEND_HOST: invoice-builder-backend
+      BACKEND_PORT: 3000
+    depends_on:
+      invoice-builder-backend:
+        condition: service_healthy
+    ports:
+      - "8086:3001"
+    networks:
+      - invoice-builder
+
+networks:
+  invoice-builder:
+    name: invoice-builder
