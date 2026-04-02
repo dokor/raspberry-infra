@@ -30,7 +30,7 @@ services:
       DB_DIRECTORY: /data
       PORT: 3000
       DEV_SERVER_URL: 0.0.0.0
-      MIGRATIONS_PATH: /app/dist-be/backend/migrations
+      MIGRATIONS_PATH: /app/dist-be/backend/server/shared/migrations
     depends_on:
       postgres:
         condition: service_healthy
