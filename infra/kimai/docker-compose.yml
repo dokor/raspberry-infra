@@ -1,21 +1,24 @@
 services:
   kimai-db:
-    image: postgres:16-alpine
+    image: mysql:8.3
     container_name: kimai-db
     restart: unless-stopped
+    command: --default-storage-engine innodb
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_USER: ${DATABASE_USER}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD}
     volumes:
-      - kimai-db-data:/var/lib/postgresql/data
+      - kimai-db-data:/var/lib/mysql
     networks:
       - kimai
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "mysqladmin -p$$MYSQL_ROOT_PASSWORD ping -h localhost"]
+      interval: 20s
+      start_period: 10s
+      timeout: 10s
+      retries: 3
 
   kimai:
     image: kimai/kimai2:apache
@@ -24,24 +27,23 @@ services:
     depends_on:
       kimai-db:
         condition: service_healthy
+        restart: true
     ports:
       - "8087:8001"
     environment:
-      ADMINMAIL: ${ADMINMAIL}
-      ADMINPASS: ${ADMINPASS}
-
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kimai-db:5432/${POSTGRES_DB}
-
-      TRUSTED_HOSTS: localhost,127.0.0.1,kimai,${RASPBERRY_IP}
-
+      ADMINMAIL: ${ADMIN_EMAIL}
+      ADMINPASS: ${ADMIN_PASSWORD}
+      DATABASE_URL: mysql://${DATABASE_USER}:${DATABASE_PASSWORD}@kimai-db/${DATABASE_NAME}?charset=utf8mb4&serverVersion=8.3.0
     volumes:
       - kimai-data:/opt/kimai/var/data
+      - kimai-plugins:/opt/kimai/var/plugins
     networks:
       - kimai
 
 volumes:
   kimai-db-data:
   kimai-data:
+  kimai-plugins:
 
 networks:
   kimai:
