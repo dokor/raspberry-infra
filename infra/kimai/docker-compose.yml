@@ -1,0 +1,48 @@
+services:
+  kimai-db:
+    image: postgres:16-alpine
+    container_name: kimai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - kimai-db-data:/var/lib/postgresql/data
+    networks:
+      - kimai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kimai:
+    image: kimai/kimai2:apache
+    container_name: kimai
+    restart: unless-stopped
+    depends_on:
+      kimai-db:
+        condition: service_healthy
+    ports:
+      - "8087:8001"
+    environment:
+      ADMINMAIL: ${ADMINMAIL}
+      ADMINPASS: ${ADMINPASS}
+
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kimai-db:5432/${POSTGRES_DB}
+
+      TRUSTED_HOSTS: localhost,127.0.0.1,kimai,${RASPBERRY_IP}
+
+    volumes:
+      - kimai-data:/opt/kimai/var/data
+    networks:
+      - kimai
+
+volumes:
+  kimai-db-data:
+  kimai-data:
+
+networks:
+  kimai:
+    name: kimai
