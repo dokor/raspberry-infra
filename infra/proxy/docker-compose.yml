@@ -26,11 +26,10 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      # Let's Encrypt (à activer plus tard)
-      # - "--certificatesresolvers.le.acme.httpchallenge=true"
-      # - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      # - "--certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL}"
-      # - "--certificatesresolvers.le.acme.storage=/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${TRAEFIK_ACME_EMAIL}"
+      - "--certificatesresolvers.le.acme.storage=/acme.json"
     ports:
       - "80:80"
       - "443:443"
