@@ -15,3 +15,10 @@ providers:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
 
+certificatesResolvers:
+  le:
+    acme:
+      email: "antoine@lelouet.fr"
+      storage: "/acme.json"
+      httpChallenge:
+        entryPoint: web
