@@ -21,17 +21,14 @@ services:
     container_name: traefik
     restart: unless-stopped
     command:
-      - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
+      - "--configFile=/traefik.yml"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /run/docker.sock:/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
       - ./acme.json:/acme.json
     env_file:
       - .env
