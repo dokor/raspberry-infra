@@ -14,4 +14,14 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+    
+certificatesResolvers:
+  le:
+    acme:
+      email: "antoine@lelouet.fr"
+      storage: "/acme.json"
+      httpChallenge:
+        entryPoint: web

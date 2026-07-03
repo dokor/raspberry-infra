@@ -11,7 +11,7 @@ services:
       - calcom
 
   calcom:
-    image: calcom/cal.com:v5.6.19-arm
+    image: calcom/cal.com:v6.2.0-arm
     container_name: calcom
     restart: unless-stopped
     depends_on:
