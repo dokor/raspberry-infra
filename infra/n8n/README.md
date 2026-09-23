@@ -107,7 +107,9 @@ Les services eux-mêmes restent dans leur repository métier et rejoignent le r�
 
 Le service `codex-bridge` fournit un point d'entrée commun aux workflows n8n qui ont besoin d'un LLM cloud.
 
-Il exécute `codex exec` dans un conteneur séparé de n8n. L'authentification Codex est conservée dans le volume `codex_home`, tandis que n8n appelle uniquement l'API HTTP interne :
+Il hérite de l'image partagée `ghcr.io/dokor/codex-runtime:0.156.1-r1`, également prévue pour le worker ADE. Codex n'est donc plus réinstallé dans chaque projet : Docker peut réutiliser la même couche contenant le CLI sur le Raspberry, tout en gardant les processus et credentials séparés.
+
+Le bridge exécute `codex exec` dans un conteneur séparé de n8n. L'authentification Codex est conservée dans le volume `codex_home`, tandis que n8n appelle uniquement l'API HTTP interne :
 
 ```text
 POST http://codex-bridge:3010/run
@@ -118,6 +120,7 @@ Préparer l'authentification une seule fois :
 
 ```bash
 cd infra/n8n
+docker pull ghcr.io/dokor/codex-runtime:0.156.1-r1
 docker compose build codex-bridge
 docker compose run --rm --entrypoint codex codex-bridge login
 docker compose run --rm --entrypoint codex codex-bridge login status
