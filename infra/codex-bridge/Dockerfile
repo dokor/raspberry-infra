@@ -1,11 +1,5 @@
-FROM node:22-bookworm-slim
-
-ARG CODEX_VERSION=latest
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates git \
-  && rm -rf /var/lib/apt/lists/* \
-  && npm install -g "@openai/codex@${CODEX_VERSION}"
+ARG CODEX_RUNTIME_IMAGE=ghcr.io/dokor/codex-runtime:0.156.1-r1
+FROM ${CODEX_RUNTIME_IMAGE}
 
 RUN mkdir -p /app /workspace /home/node/.codex \
   && chown -R node:node /app /workspace /home/node/.codex
