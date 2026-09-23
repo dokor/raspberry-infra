@@ -1,0 +1,118 @@
+# Central n8n
+
+Cette stack devient l'unique instance n8n du Raspberry.
+
+Les projets métier ne doivent plus embarquer leur propre n8n. Ils exposent leurs services sur le réseau Docker partagé `automation` et conservent leurs workflows versionnés dans leur propre repository.
+
+## Architecture
+
+```text
+                    n8n
+                     |
+             network: automation
+          ___________|____________
+         |                        |
+         v                        v
+prospection-auto          browser-automations
+  - searxng                 - hellcase.daily
+  - linkedin-worker         - futurs modules
+```
+
+## Données existantes
+
+La stack est volontairement configurée pour réutiliser par défaut le volume Docker créé par l'ancienne instance de `prospection-auto` :
+
+```text
+prospection-auto_n8n_data
+```
+
+Cela permet de conserver :
+
+- workflows créés/importés dans l'interface ;
+- credentials ;
+- Data Tables ;
+- historique/configuration n8n.
+
+La variable `N8N_DATA_VOLUME` permet de changer ce nom si le volume réel sur le Raspberry diffère.
+
+## Important : clé de chiffrement
+
+La valeur de `N8N_ENCRYPTION_KEY` doit être **strictement identique** à celle utilisée par l'ancienne instance n8n.
+
+Sinon les credentials déjà stockés dans le volume ne pourront plus être déchiffrés.
+
+## Migration depuis prospection-auto
+
+Ne lancez jamais l'ancienne et la nouvelle instance n8n en même temps sur le même volume.
+
+1. Vérifier le volume actuel :
+
+```bash
+docker volume ls | grep n8n
+docker volume inspect prospection-auto_n8n_data
+```
+
+2. Récupérer la valeur actuelle de `N8N_ENCRYPTION_KEY`.
+
+3. Préparer la nouvelle configuration :
+
+```bash
+cd infra/n8n
+cp .env.example .env
+```
+
+4. Arrêter uniquement l'ancien n8n :
+
+```bash
+cd /chemin/vers/prospection-auto
+docker compose stop n8n
+```
+
+5. Créer le réseau partagé si nécessaire :
+
+```bash
+docker network inspect automation >/dev/null 2>&1 || docker network create automation
+```
+
+6. Démarrer l'instance centrale :
+
+```bash
+cd /chemin/vers/raspberry-infra/infra/n8n
+docker compose up -d
+```
+
+7. Vérifier que les workflows, credentials et Data Tables sont présents.
+
+8. Déployer ensuite la version de `prospection-auto` qui ne contient plus son propre service n8n.
+
+Ne jamais utiliser `docker compose down -v` sur l'ancienne stack pendant la migration.
+
+## Modules
+
+L'instance centrale peut recevoir les variables nécessaires aux workflows de chaque module.
+
+Pour l'instant, la compatibilité avec `prospection-auto` est conservée avec :
+
+- `SEARXNG_BASE_URL`
+- `LINKEDIN_WORKER_URL`
+- `ARGOS_BASE_URL`
+- `N8N_REVIEW_FORM_URL`
+- `DRY_RUN`
+
+Ces variables ne déploient pas les services associés : elles donnent seulement à n8n leurs adresses.
+
+Les services eux-mêmes restent dans leur repository métier et rejoignent le réseau `automation`.
+
+## Browser automations
+
+Le worker Playwright partagé est appelé depuis n8n avec un node HTTP Request, par exemple :
+
+```text
+POST http://browser-automations:3000/run/hellcase.daily
+```
+
+## Déploiement
+
+Le workflow GitHub fourni est volontairement manuel afin de ne pas migrer automatiquement l'instance n8n existante lors du merge.
+
+Une fois la migration préparée, lancer **Deploy central n8n** depuis GitHub Actions.
