@@ -10,12 +10,12 @@ Les projets métier ne doivent plus embarquer leur propre n8n. Ils exposent leur
                     n8n
                      |
              network: automation
-          ___________|____________
-         |                        |
-         v                        v
-prospection-auto          browser-automations
-  - searxng                 - hellcase.daily
-  - linkedin-worker         - futurs modules
+          ___________|________________________
+         |                  |                 |
+         v                  v                 v
+prospection-auto       codex-bridge      browser-automations
+  - searxng             - codex exec      - hellcase.daily
+  - linkedin-worker     - ChatGPT auth    - futurs modules
 ```
 
 ## Données existantes
@@ -102,6 +102,30 @@ Pour l'instant, la compatibilité avec `prospection-auto` est conservée avec :
 Ces variables ne déploient pas les services associés : elles donnent seulement à n8n leurs adresses.
 
 Les services eux-mêmes restent dans leur repository métier et rejoignent le réseau `automation`.
+
+## AI / Codex
+
+Le service `codex-bridge` fournit un point d'entrée commun aux workflows n8n qui ont besoin d'un LLM cloud.
+
+Il exécute `codex exec` dans un conteneur séparé de n8n. L'authentification Codex est conservée dans le volume `codex_home`, tandis que n8n appelle uniquement l'API HTTP interne :
+
+```text
+POST http://codex-bridge:3010/run
+Authorization: Bearer <CODEX_BRIDGE_TOKEN>
+```
+
+Préparer l'authentification une seule fois :
+
+```bash
+cd infra/n8n
+docker compose build codex-bridge
+docker compose run --rm --entrypoint codex codex-bridge login
+docker compose run --rm --entrypoint codex codex-bridge login status
+```
+
+Le bridge limite la concurrence à 1 par défaut pour protéger le quota Codex. Il accepte également un JSON Schema afin de produire une sortie structurée exploitable directement par n8n.
+
+Voir `../codex-bridge/README.md` pour le contrat HTTP.
 
 ## Browser automations
 
