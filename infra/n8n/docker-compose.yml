@@ -16,6 +16,10 @@ services:
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       TZ: ${TZ:-Europe/Brussels}
 
+      # Shared AI module
+      CODEX_BRIDGE_URL: ${CODEX_BRIDGE_URL:-http://codex-bridge:3010}
+      CODEX_BRIDGE_TOKEN: ${CODEX_BRIDGE_TOKEN:?CODEX_BRIDGE_TOKEN is required}
+
       # Module: prospection-auto
       SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
       LINKEDIN_WORKER_URL: ${LINKEDIN_WORKER_URL:-http://linkedin-worker:3000}
@@ -27,6 +31,39 @@ services:
     networks:
       - automation
 
+  codex-bridge:
+    build:
+      context: ../codex-bridge
+      args:
+        CODEX_VERSION: ${CODEX_VERSION:-latest}
+    container_name: codex-bridge
+    restart: unless-stopped
+    environment:
+      PORT: 3010
+      CODEX_HOME: /home/node/.codex
+      CODEX_BRIDGE_TOKEN: ${CODEX_BRIDGE_TOKEN:?CODEX_BRIDGE_TOKEN is required}
+      CODEX_MAX_CONCURRENCY: ${CODEX_MAX_CONCURRENCY:-1}
+      CODEX_TIMEOUT_MS: ${CODEX_TIMEOUT_MS:-180000}
+      CODEX_MAX_BODY_BYTES: ${CODEX_MAX_BODY_BYTES:-262144}
+    expose:
+      - "3010"
+    volumes:
+      - codex_home:/home/node/.codex
+    networks:
+      - automation
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 networks:
   automation:
     external: true
@@ -34,3 +71,5 @@ networks:
 volumes:
   n8n_data:
     name: ${N8N_DATA_VOLUME:-prospection-auto_n8n_data}
+  codex_home:
+    name: ${CODEX_HOME_VOLUME:-codex_bridge_home}
