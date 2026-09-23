@@ -4,6 +4,8 @@ Petit service HTTP interne permettant à n8n d'appeler Codex sans exposer une cl
 
 Le bridge lance `codex exec` dans un conteneur isolé, conserve l'authentification Codex dans un volume Docker dédié et renvoie uniquement la réponse finale à n8n.
 
+Le binaire Codex n'est pas installé dans cette image : elle hérite de `ghcr.io/dokor/codex-runtime:0.156.1-r1`, runtime commun également destiné au worker ADE.
+
 ## Endpoints
 
 - `GET /health` : health check sans authentification.
