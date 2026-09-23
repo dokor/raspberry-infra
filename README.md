@@ -8,6 +8,7 @@ qui servent de fondation :
 - Bases de données partagées
 - Réseaux Docker communs
 - Services transverses d’infra
+- Instance n8n centrale pour les workflows du homelab
 
 ---
 
@@ -28,6 +29,7 @@ Fournir une base stable pour :
   /proxy          -> reverse proxy principal (80/443)
   /databases      -> instance(s) DB partagées
   /secure-db      -> DB isolée pour projet critique (optionnel)
+  /n8n            -> instance n8n centrale et persistante
 ```
 Les projets applicatifs tournent dans des dépôts séparés et utilisent l’infra via :
 - réseaux Docker communs
