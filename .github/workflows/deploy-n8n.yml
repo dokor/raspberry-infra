@@ -1,0 +1,28 @@
+name: Deploy central n8n
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - raspberry
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure automation network
+        run: |
+          docker network inspect automation >/dev/null 2>&1 || docker network create automation
+
+      - name: Deploy n8n
+        working-directory: infra/n8n
+        run: |
+          test -f .env || {
+            echo "Missing infra/n8n/.env on the Raspberry checkout."
+            echo "Prepare it with the existing N8N_ENCRYPTION_KEY before running this workflow."
+            exit 1
+          }
+          docker compose up -d
