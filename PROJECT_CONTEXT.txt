@@ -1,55 +1,53 @@
 Je travaille sur un homelab basé sur un Raspberry Pi 5.
 
-Contexte technique (important) :
+Contexte technique :
 - OS : Debian / Raspberry Pi OS 64 bits
-- Docker installé (version récente, OK)
-- Docker Compose utilisé partout
-- Traefik v3.x comme reverse proxy unique (ports 80/443)
-- Réseau Docker externe : `proxy`
-- Pas d’exposition directe de ports applicatifs
-- Pas de `.env` versionné (config directement dans les compose ou fichiers locaux)
-- GitHub Actions avec un runner self-hosted installé sur le Raspberry
-- Le runner déploie toujours depuis `/srv/apps/<project>` (git pull + docker compose up)
-- Aucun registry Docker externe utilisé
-- Stack infra séparée dans un repo `raspberry-infra`
-- Stack monitoring (Grafana / Prometheus) déjà en place
-- Sécurité de base activée (UFW + Fail2ban)
+- Docker + Docker Compose
+- Traefik v3.x comme reverse proxy public principal
+- réseau Docker externe `proxy` pour les services exposés
+- réseau Docker externe privé `automation` pour n8n et les workers internes
+- GitHub Actions avec runner self-hosted sur le Raspberry
+- GHCR utilisé pour les images partagées du homelab
+- aucun secret ou fichier .env de production versionné
+- UFW + Fail2ban
+- Grafana / Prometheus déjà présents
 
-Organisation sur le Raspberry :
+Architecture automation :
+- une seule instance n8n centrale sur le Raspberry
+- n8n possède l'orchestration : schedules, retries, conditions, validations et notifications
+- `codex-bridge` expose Codex à n8n uniquement sur le réseau `automation`
+- `codex-runtime` est une image Docker versionnée commune réutilisée par plusieurs services
+- `browser-automations` porte Playwright / Chromium et les sessions navigateur
+- les workflows n8n restent versionnés dans les repositories métier qui les utilisent
+- les détails propres à un site ou une automatisation ne doivent pas remonter dans `raspberry-infra`
+
+Organisation indicative :
 /srv/
-  ├─ infra/raspberry-infra/
+  ├─ infra/
+  │   └─ raspberry-infra/
+  │       └─ env/
+  │           └─ n8n.env
   ├─ apps/
-  │   ├─ projets Docker (un dossier par projet)
+  │   └─ projets Docker
   └─ backups/
 
-Méthode de déploiement standard :
-- Chaque projet a son propre repo GitHub
-- Chaque projet a son propre docker-compose.yml
-- Un push sur `main` déclenche un déploiement automatique via GitHub Actions
-- Le workflow fait :
-  cd /srv/apps/<project>
-  git fetch --all
-  git reset --hard origin/main
-  docker compose up -d --build --remove-orphans
+Déploiement :
+- les applications métier peuvent être déployées depuis leur clone de production ou via checkout GitHub Actions selon le workflow
+- les services d'infrastructure ont leurs workflows dédiés
+- les migrations sensibles peuvent rester en `workflow_dispatch`
+- les images partagées sont publiées sur GHCR
+- les secrets de runtime persistent hors des workspaces temporaires du runner
 
-Types de projets à déployer :
-- Backends Java (Java 17, Maven, jar-with-dependencies, pas Spring)
-- Applications Next.js
-- Sites vitrines (HTML / Nginx)
-- WordPress + MariaDB
+Contraintes :
+- Raspberry Pi 5 ARM64
+- priorité à la simplicité, robustesse et lisibilité
+- pas de Kubernetes
+- pas de plateforme cloud d'hébergement nécessaire
+- préférer des composants légers, reproductibles et documentés
 
-Contraintes importantes :
-- Raspberry Pi 5 (ARM64)
-- Priorité à la simplicité, robustesse et lisibilité
-- Pas de Kubernetes
-- Pas de cloud externe
-- Pas de solutions lourdes
-- Préférer des solutions reproductibles et documentées
-
-Ce que j’attends de toi :
-- Des réponses orientées architecture + pratique
-- Des exemples concrets (Dockerfile, docker-compose, workflows GitHub)
-- Des choix expliqués (pourquoi cette solution plutôt qu’une autre)
-- Des solutions adaptées au Raspberry Pi (performance, RAM, ARM)
-
-À partir de maintenant, considère que tout ce contexte est acquis.
+Principes :
+- éviter les services dupliqués entre projets
+- centraliser les briques réellement transverses
+- isoler les credentials, volumes et workspaces quand nécessaire
+- ne pas exposer directement un service interne sans besoin explicite
+- épingler les runtimes de production plutôt que dépendre implicitement de `:latest`
