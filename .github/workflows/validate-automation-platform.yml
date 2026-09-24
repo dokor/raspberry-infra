@@ -1,0 +1,46 @@
+name: Validate automation platform
+
+on:
+  pull_request:
+    paths:
+      - "infra/n8n/**"
+      - "infra/automations/**"
+      - "infra/codex-bridge/**"
+      - ".github/workflows/deploy-n8n.yml"
+      - ".github/workflows/deploy-automations.yml"
+      - ".github/workflows/validate-automation-platform.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/n8n/**"
+      - "infra/automations/**"
+      - "infra/codex-bridge/**"
+      - ".github/workflows/deploy-n8n.yml"
+      - ".github/workflows/deploy-automations.yml"
+      - ".github/workflows/validate-automation-platform.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate central n8n compose
+        env:
+          N8N_IMAGE: n8nio/n8n:validation-only
+          N8N_ENCRYPTION_KEY: validation-only
+          CODEX_BRIDGE_TOKEN: validation-only
+          AUTOMATION_API_TOKEN: validation-only
+        run: docker compose -f infra/n8n/docker-compose.yml config >/dev/null
+
+      - name: Validate browser automations compose
+        env:
+          AUTOMATION_API_TOKEN: validation-only
+          BROWSER_AUTOMATIONS_IMAGE: ghcr.io/dokor/browser-automations:validation-only
+        run: docker compose -f infra/automations/docker-compose.yml config >/dev/null
