@@ -9,6 +9,7 @@ qui servent de fondation :
 - Réseaux Docker communs
 - Services transverses d’infra
 - Instance n8n centrale pour les workflows du homelab
+- Worker d'automatisations navigateur partagé, piloté par n8n
 
 ---
 
@@ -30,6 +31,7 @@ Fournir une base stable pour :
   /databases      -> instance(s) DB partagées
   /secure-db      -> DB isolée pour projet critique (optionnel)
   /n8n            -> instance n8n centrale et persistante
+  /automations    -> worker Playwright partagé, sans scheduler propre
 ```
 Les projets applicatifs tournent dans des dépôts séparés et utilisent l’infra via :
 - réseaux Docker communs
@@ -47,6 +49,9 @@ Réseau Docker externe partagé pour tout ce qui doit être exposé publiquement
 `docker network create proxy`
 
 Tous les services “web” s’y connectent + le reverse proxy.
+
+### 🔹 Réseau `automation`
+Réseau Docker externe privé utilisé par la plateforme d’automatisation centrale. Il relie n8n aux services transverses comme `codex-bridge` et `browser-automations` sans exposer ces services publiquement.
 
 ### 🔹 Réseaux internes
 Chaque projet gère ses réseaux internes indépendamment.
