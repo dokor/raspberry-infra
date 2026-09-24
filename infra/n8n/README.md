@@ -14,8 +14,8 @@ Les projets métier ne doivent plus embarquer leur propre n8n. Ils exposent leur
          |                  |                 |
          v                  v                 v
 prospection-auto       codex-bridge      browser-automations
-  - searxng             - codex exec      - hellcase.daily
-  - linkedin-worker     - ChatGPT auth    - futurs modules
+  - searxng             - codex exec      - modules navigateur
+  - linkedin-worker     - ChatGPT auth    - sessions persistantes
 ```
 
 ## Données existantes
@@ -132,7 +132,7 @@ Voir `../codex-bridge/README.md` pour le contrat HTTP.
 
 ## Browser automations
 
-Le worker Playwright partagé est un service de la même plateforme centrale. n8n reste propriétaire de l'orchestration : planning, retries, conditions, validation humaine et notifications. Le worker ne fait que l'exécution navigateur et la persistance des sessions.
+Le worker Playwright partagé est un service générique de la même plateforme centrale. n8n reste propriétaire de l'orchestration : planning, retries, conditions, validation humaine et notifications. Le worker ne fait que l'exécution navigateur et la persistance des sessions.
 
 Configurer dans `.env` :
 
@@ -141,12 +141,14 @@ BROWSER_AUTOMATIONS_URL=http://browser-automations:3000
 AUTOMATION_API_TOKEN=<même valeur que le secret GitHub Actions du worker>
 ```
 
-Les workflows peuvent ensuite appeler, par exemple :
+Contrat d'appel :
 
 ```text
-POST {{$env.BROWSER_AUTOMATIONS_URL}}/run/hellcase.daily
+POST {{$env.BROWSER_AUTOMATIONS_URL}}/run/<automation-id>
 Authorization: Bearer {{$env.AUTOMATION_API_TOKEN}}
 ```
+
+Les noms, paramètres et procédures propres aux automatisations métier restent dans leurs repositories/modules respectifs.
 
 Le service n'est pas exposé sur l'hôte : n8n le joint uniquement via le réseau Docker privé `automation`.
 
