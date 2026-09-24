@@ -132,11 +132,25 @@ Voir `../codex-bridge/README.md` pour le contrat HTTP.
 
 ## Browser automations
 
-Le worker Playwright partagé est appelé depuis n8n avec un node HTTP Request, par exemple :
+Le worker Playwright partagé est un service de la même plateforme centrale. n8n reste propriétaire de l'orchestration : planning, retries, conditions, validation humaine et notifications. Le worker ne fait que l'exécution navigateur et la persistance des sessions.
+
+Configurer dans `.env` :
 
 ```text
-POST http://browser-automations:3000/run/hellcase.daily
+BROWSER_AUTOMATIONS_URL=http://browser-automations:3000
+AUTOMATION_API_TOKEN=<même valeur que le secret GitHub Actions du worker>
 ```
+
+Les workflows peuvent ensuite appeler, par exemple :
+
+```text
+POST {{$env.BROWSER_AUTOMATIONS_URL}}/run/hellcase.daily
+Authorization: Bearer {{$env.AUTOMATION_API_TOKEN}}
+```
+
+Le service n'est pas exposé sur l'hôte : n8n le joint uniquement via le réseau Docker privé `automation`.
+
+Voir `../automations/README.md` pour le contrat et l'ajout de nouveaux modules.
 
 ## Déploiement
 
