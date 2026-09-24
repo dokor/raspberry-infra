@@ -1,0 +1,53 @@
+name: Deploy shared browser automations
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/automations/**"
+      - ".github/workflows/deploy-automations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - raspberry
+    env:
+      AUTOMATION_API_TOKEN: ${{ secrets.AUTOMATION_API_TOKEN }}
+      BROWSER_AUTOMATIONS_IMAGE: ${{ vars.BROWSER_AUTOMATIONS_IMAGE || 'ghcr.io/dokor/browser-automations:latest' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Require automation token
+        run: |
+          set -Eeuo pipefail
+          test -n "$AUTOMATION_API_TOKEN" || {
+            echo "Missing GitHub Actions secret AUTOMATION_API_TOKEN." >&2
+            exit 1
+          }
+
+      - name: Ensure automation network
+        run: |
+          set -Eeuo pipefail
+          docker network inspect automation >/dev/null 2>&1 || docker network create automation
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy browser automations
+        working-directory: infra/automations
+        run: |
+          set -Eeuo pipefail
+          docker compose pull
+          docker compose up -d --remove-orphans

@@ -1,275 +1,169 @@
-# 🚀 DEPLOYMENT_GUIDE — Raspberry Homelab
+# 🚀 Deployment guide — Raspberry homelab
 
-## 1. Introduction
+## 1. Principes
 
-Ce guide décrit une méthode standardisée, reproductible et légère pour déployer des projets web
-sur un Raspberry Pi à l’aide de Docker, Traefik et GitHub Actions (runner self-hosted).
+Le homelab utilise Docker, Docker Compose, Traefik et un runner GitHub Actions self-hosted.
 
-Objectif principal :
+Il n'existe pas un unique modèle de déploiement pour tous les composants :
 
-> Un push sur la branche `main` déclenche automatiquement un déploiement en production.
+- les applications métier peuvent être redéployées automatiquement après merge sur `main` ;
+- les services d'infrastructure ont des workflows ciblés par chemin ;
+- les migrations sensibles peuvent rester manuelles via `workflow_dispatch` ;
+- les images partagées sont construites sur GitHub Actions et publiées sur GHCR.
 
-Ce guide couvre :
-- des sites vitrines (HTML / Nginx)
-- des applications Next.js
-- des backends Java
-- des WordPress avec base de données
+L'objectif est de garder les déploiements reproductibles sans mélanger code, secrets et données persistantes.
 
----
+## 2. Organisation
 
-## 2. Déroulement général du déploiement
-
-1. Le Raspberry héberge :
-   - Docker
-   - Traefik (reverse proxy)
-   - un runner GitHub Actions self-hosted
-2. Chaque projet dispose de :
-   - son dépôt GitHub
-   - son `docker-compose.yml`
-3. Le Raspberry contient un clone “production” du dépôt dans `/srv/apps/<project>`
-4. À chaque push sur `main` :
-   - GitHub Actions déclenche le runner
-   - le runner met à jour le dépôt (`git pull`)
-   - le runner relance le projet avec Docker Compose
-
----
-
-## 3. Organisation des dossiers sur le Raspberry
-
-```
+```text
 /srv/
 ├─ infra/
 │  └─ raspberry-infra/
-│     ├─ proxy/        (Traefik)
-│     ├─ databases/    (MariaDB)
-│     └─ monitoring/   (Grafana / Prometheus)
-│
+│     └─ env/
+│        └─ n8n.env
 ├─ apps/
-│  ├─ wordpress-site/
-│  ├─ nextjs-app/
-│  ├─ java-backend/
-│  └─ static-site/
-│
+│  ├─ project-a/
+│  └─ project-b/
 └─ backups/
 ```
 
-Chaque dossier dans `/srv/apps` correspond à un projet déployé.
+Le répertoire `/srv/infra/raspberry-infra/env` contient les configurations persistantes nécessaires aux workflows d'infrastructure. Il ne doit pas être dans Git.
 
----
+## 3. Réseaux Docker
 
-## 4. Réseaux Docker
+### `proxy`
 
-### Réseau `proxy`
-- réseau Docker externe
-- utilisé par Traefik
-- utilisé par tous les services exposés publiquement
+Réseau externe des services exposés via Traefik.
 
 ```bash
-docker network create proxy
+docker network inspect proxy >/dev/null 2>&1 || docker network create proxy
 ```
 
-### Réseaux internes
-- un réseau interne par projet (ex: `wp-net`, `java-net`)
-- utilisé pour les bases de données et services internes
-- non exposé publiquement
+### `automation`
 
----
+Réseau externe privé de la plateforme d'automatisation :
 
-## 5. Workflow GitHub Actions standard
+```bash
+docker network inspect automation >/dev/null 2>&1 || docker network create automation
+```
 
-Fichier `.github/workflows/deploy.yml` :
+Il relie notamment :
+
+- n8n ;
+- codex-bridge ;
+- browser-automations ;
+- les services métier qui doivent être appelés par n8n.
+
+## 4. Images partagées / GHCR
+
+GHCR est utilisé pour distribuer des images ARM64/AMD64 communes.
+
+Exemples :
+
+```text
+ghcr.io/dokor/codex-runtime:0.156.1-r1
+ghcr.io/dokor/browser-automations:<tag>
+```
+
+Un workflow qui doit tirer un package privé doit :
+
+1. demander `packages: read` ;
+2. effectuer un login `ghcr.io` avec le `GITHUB_TOKEN` ;
+3. disposer de l'accès Actions au package si celui-ci est privé.
+
+## 5. Configuration persistante
+
+Ne pas compter sur un fichier `.env` laissé dans le workspace d'un `actions/checkout`.
+
+Le checkout du runner est un espace de travail CI, pas le stockage des secrets de production.
+
+Pour n8n, le chemin par défaut est :
+
+```text
+/srv/infra/raspberry-infra/env/n8n.env
+```
+
+Le workflow accepte un autre emplacement via la variable GitHub Actions `N8N_ENV_FILE`.
+
+Préparation initiale :
+
+```bash
+sudo mkdir -p /srv/infra/raspberry-infra/env
+sudo cp infra/n8n/.env.example /srv/infra/raspberry-infra/env/n8n.env
+sudo chmod 600 /srv/infra/raspberry-infra/env/n8n.env
+```
+
+Puis renseigner les vraies valeurs.
+
+## 6. Déploiement n8n
+
+Le déploiement n8n reste volontairement manuel pendant la migration.
+
+Le workflow :
+
+1. checkout le code de `main` ;
+2. crée/vérifie le réseau `automation` ;
+3. s'authentifie à GHCR ;
+4. charge le fichier d'environnement persistant ;
+5. valide Docker Compose ;
+6. récupère l'image n8n ;
+7. construit `codex-bridge` depuis le runtime Codex partagé ;
+8. applique le compose.
+
+L'image n8n doit être explicitement épinglée dans `N8N_IMAGE`.
+
+## 7. Browser automations
+
+Le worker navigateur est générique.
+
+```text
+n8n
+  |
+  | POST /run/<automation-id>
+  v
+browser-automations
+  └── Playwright / Chromium / sessions
+```
+
+n8n garde la responsabilité de l'orchestration. Les paramètres métier propres aux sites restent avec leurs modules respectifs.
+
+## 8. Déploiement d'une application métier
+
+Pattern courant :
 
 ```yaml
-name: Deploy on Raspberry
-
-on:
-  push:
-    branches: [ "main" ]
-  workflow_dispatch:
-
 jobs:
   deploy:
     runs-on:
       - self-hosted
       - raspberry
-
     steps:
-      - name: Deploy from Raspberry
+      - name: Deploy
         run: |
-          set -e
+          set -Eeuo pipefail
           cd /srv/apps/PROJECT_NAME
-          git fetch --all
+          git fetch origin main
           git reset --hard origin/main
           docker compose up -d --build --remove-orphans
 ```
 
----
+Ce pattern n'est pas obligatoire pour l'infrastructure elle-même : les workflows `raspberry-infra` peuvent travailler depuis leur checkout CI lorsque les données persistantes restent en dehors de ce checkout.
 
-## 6. Exemples de projets
+## 9. Exposition réseau
 
-### 6.1 Site vitrine (HTML / Nginx)
+- Traefik est le point d'entrée public HTTP/HTTPS ;
+- les services internes utilisent `expose` ou aucun mapping de port ;
+- n8n est lié à `127.0.0.1:5678` par défaut ;
+- une exposition distante de n8n doit être configurée explicitement, idéalement via Traefik ;
+- les bases ne doivent pas être rendues publiques.
 
-**Dockerfile**
-```dockerfile
-FROM nginx:alpine
-COPY public /usr/share/nginx/html
-```
+## 10. Checklist
 
-**docker-compose.yml**
-```yaml
-services:
-  site:
-    build: .
-    restart: unless-stopped
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.site.rule=Host(`site.example.com`)"
-      - "traefik.http.services.site.loadbalancer.server.port=80"
-
-networks:
-  proxy:
-    external: true
-```
-
----
-
-### 6.2 Application Next.js
-
-**Dockerfile**
-```dockerfile
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=build /app ./
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-**docker-compose.yml**
-```yaml
-services:
-  nextjs:
-    build: .
-    restart: unless-stopped
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nextjs.rule=Host(`app.example.com`)"
-      - "traefik.http.services.nextjs.loadbalancer.server.port=3000"
-
-networks:
-  proxy:
-    external: true
-```
-
----
-
-### 6.3 Backend Java
-
-**Dockerfile**
-```dockerfile
-FROM maven:3.9-eclipse-temurin-17 AS build
-WORKDIR /app
-COPY pom.xml .
-RUN mvn -DskipTests dependency:go-offline
-COPY src ./src
-RUN mvn -DskipTests package assembly:single
-
-FROM eclipse-temurin:17-jre
-WORKDIR /app
-COPY --from=build /app/target/*-jar-with-dependencies.jar app.jar
-EXPOSE 8080
-CMD ["java", "-jar", "app.jar"]
-```
-
-**docker-compose.yml**
-```yaml
-services:
-  backend:
-    build: .
-    restart: unless-stopped
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.example.com`)"
-      - "traefik.http.services.api.loadbalancer.server.port=8080"
-
-networks:
-  proxy:
-    external: true
-```
-
----
-
-### 6.4 WordPress + base de données
-
-```yaml
-services:
-  wordpress:
-    image: wordpress:php8.2-apache
-    restart: unless-stopped
-    environment:
-      WORDPRESS_DB_HOST: db
-      WORDPRESS_DB_NAME: wp_site
-      WORDPRESS_DB_USER: wp_user
-      WORDPRESS_DB_PASSWORD: strongpassword
-    networks:
-      - proxy
-      - wp-net
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.wp.rule=Host(`wp.example.com`)"
-      - "traefik.http.services.wp.loadbalancer.server.port=80"
-
-  db:
-    image: mariadb:10.11
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: wp_site
-      MYSQL_USER: wp_user
-      MYSQL_PASSWORD: strongpassword
-      MYSQL_ROOT_PASSWORD: rootpassword
-    volumes:
-      - db_data:/var/lib/mysql
-    networks:
-      - wp-net
-
-volumes:
-  db_data:
-
-networks:
-  wp-net:
-  proxy:
-    external: true
-```
-
----
-
-## 7. Bonnes pratiques
-
-- Ne pas versionner de fichiers `.env`
-- Ne pas exposer de ports directement
-- Traefik est l’unique point d’entrée HTTP/HTTPS
-- Un projet = un `docker-compose.yml`
-- Le runner déploie toujours depuis `/srv/apps`
-
----
-
-## 8. Résultat
-
-- Déploiement automatisé
-- Infrastructure simple et robuste
-- Adaptée au Raspberry Pi 5
-- Facilement extensible
-
----
+- [ ] runner `self-hosted + raspberry` disponible
+- [ ] réseaux `proxy` et `automation` créés
+- [ ] secrets GitHub configurés
+- [ ] fichiers d'environnement persistants présents hors Git
+- [ ] accès GHCR configuré pour les packages privés
+- [ ] images de production épinglées
+- [ ] volumes Docker vérifiés avant toute migration
+- [ ] aucun `docker compose down -v` pendant une migration de données

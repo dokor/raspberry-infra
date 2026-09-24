@@ -1,145 +1,150 @@
 # Central n8n
 
-Cette stack devient l'unique instance n8n du Raspberry.
+Cette stack est l'unique instance n8n du Raspberry.
 
-Les projets métier ne doivent plus embarquer leur propre n8n. Ils exposent leurs services sur le réseau Docker partagé `automation` et conservent leurs workflows versionnés dans leur propre repository.
+Les workflows métier restent versionnés dans leurs repositories respectifs. n8n fournit le runtime central et orchestre les services internes via le réseau Docker `automation`.
 
 ## Architecture
 
 ```text
-                    n8n
-                     |
-             network: automation
-          ___________|________________________
-         |                  |                 |
-         v                  v                 v
-prospection-auto       codex-bridge      browser-automations
-  - searxng             - codex exec      - hellcase.daily
-  - linkedin-worker     - ChatGPT auth    - futurs modules
+                         n8n
+                          |
+                  network: automation
+          ________________|________________
+         |                                 |
+         v                                 v
+   codex-bridge                  browser-automations
+   Codex / LLM                   Playwright / Chromium
+                                           |
+                                           +-- modules métier
 ```
 
-## Données existantes
+Les services spécifiques à un projet peuvent également rejoindre `automation`.
 
-La stack est volontairement configurée pour réutiliser par défaut le volume Docker créé par l'ancienne instance de `prospection-auto` :
+## Configuration persistante
+
+La configuration de production ne doit pas vivre dans le checkout GitHub Actions.
+
+Chemin utilisé par défaut :
+
+```text
+/srv/infra/raspberry-infra/env/n8n.env
+```
+
+Préparation :
+
+```bash
+sudo mkdir -p /srv/infra/raspberry-infra/env
+sudo cp infra/n8n/.env.example /srv/infra/raspberry-infra/env/n8n.env
+sudo chmod 600 /srv/infra/raspberry-infra/env/n8n.env
+```
+
+Le chemin peut être remplacé avec la variable GitHub Actions `N8N_ENV_FILE`.
+
+## Version n8n
+
+`N8N_IMAGE` est obligatoire et ne possède plus de fallback `:latest`.
+
+Avant le premier déploiement, relever la version actuellement utilisée/validée puis renseigner par exemple :
+
+```text
+N8N_IMAGE=n8nio/n8n:X.Y.Z
+```
+
+Une montée de version doit être explicite.
+
+## Migration des données existantes
+
+La valeur par défaut de `N8N_DATA_VOLUME` reste :
 
 ```text
 prospection-auto_n8n_data
 ```
 
-Cela permet de conserver :
+uniquement afin de faciliter la migration depuis l'ancienne instance.
 
-- workflows créés/importés dans l'interface ;
-- credentials ;
-- Data Tables ;
-- historique/configuration n8n.
+La valeur de `N8N_ENCRYPTION_KEY` doit être strictement identique à celle de cette instance, sinon les credentials existants ne pourront pas être déchiffrés.
 
-La variable `N8N_DATA_VOLUME` permet de changer ce nom si le volume réel sur le Raspberry diffère.
+Ne jamais lancer deux instances n8n simultanément sur le même volume et ne jamais utiliser `docker compose down -v` pendant la migration.
 
-## Important : clé de chiffrement
+## Réseau / exposition
 
-La valeur de `N8N_ENCRYPTION_KEY` doit être **strictement identique** à celle utilisée par l'ancienne instance n8n.
+n8n rejoint `automation`.
 
-Sinon les credentials déjà stockés dans le volume ne pourront plus être déchiffrés.
+Par défaut :
 
-## Migration depuis prospection-auto
-
-Ne lancez jamais l'ancienne et la nouvelle instance n8n en même temps sur le même volume.
-
-1. Vérifier le volume actuel :
-
-```bash
-docker volume ls | grep n8n
-docker volume inspect prospection-auto_n8n_data
+```text
+N8N_BIND_ADDRESS=127.0.0.1
 ```
 
-2. Récupérer la valeur actuelle de `N8N_ENCRYPTION_KEY`.
+Donc le port 5678 n'est pas exposé sur toutes les interfaces du Raspberry.
 
-3. Préparer la nouvelle configuration :
+Si l'éditeur ou les webhooks doivent être accessibles à distance, configurer explicitement Traefik et les valeurs `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL` et `WEBHOOK_URL`.
 
-```bash
-cd infra/n8n
-cp .env.example .env
+## Codex
+
+`codex-bridge` est construit depuis :
+
+```text
+ghcr.io/dokor/codex-runtime:0.156.1-r1
 ```
 
-4. Arrêter uniquement l'ancien n8n :
-
-```bash
-cd /chemin/vers/prospection-auto
-docker compose stop n8n
-```
-
-5. Créer le réseau partagé si nécessaire :
-
-```bash
-docker network inspect automation >/dev/null 2>&1 || docker network create automation
-```
-
-6. Démarrer l'instance centrale :
-
-```bash
-cd /chemin/vers/raspberry-infra/infra/n8n
-docker compose up -d
-```
-
-7. Vérifier que les workflows, credentials et Data Tables sont présents.
-
-8. Déployer ensuite la version de `prospection-auto` qui ne contient plus son propre service n8n.
-
-Ne jamais utiliser `docker compose down -v` sur l'ancienne stack pendant la migration.
-
-## Modules
-
-L'instance centrale peut recevoir les variables nécessaires aux workflows de chaque module.
-
-Pour l'instant, la compatibilité avec `prospection-auto` est conservée avec :
-
-- `SEARXNG_BASE_URL`
-- `LINKEDIN_WORKER_URL`
-- `ARGOS_BASE_URL`
-- `N8N_REVIEW_FORM_URL`
-- `DRY_RUN`
-
-Ces variables ne déploient pas les services associés : elles donnent seulement à n8n leurs adresses.
-
-Les services eux-mêmes restent dans leur repository métier et rejoignent le réseau `automation`.
-
-## AI / Codex
-
-Le service `codex-bridge` fournit un point d'entrée commun aux workflows n8n qui ont besoin d'un LLM cloud.
-
-Il hérite de l'image partagée `ghcr.io/dokor/codex-runtime:0.156.1-r1`, également prévue pour le worker ADE. Codex n'est donc plus réinstallé dans chaque projet : Docker peut réutiliser la même couche contenant le CLI sur le Raspberry, tout en gardant les processus et credentials séparés.
-
-Le bridge exécute `codex exec` dans un conteneur séparé de n8n. L'authentification Codex est conservée dans le volume `codex_home`, tandis que n8n appelle uniquement l'API HTTP interne :
+n8n l'appelle uniquement sur le réseau interne :
 
 ```text
 POST http://codex-bridge:3010/run
 Authorization: Bearer <CODEX_BRIDGE_TOKEN>
 ```
 
-Préparer l'authentification une seule fois :
+L'authentification Codex persiste dans le volume `codex_home`.
+
+Première authentification :
 
 ```bash
-cd infra/n8n
-docker pull ghcr.io/dokor/codex-runtime:0.156.1-r1
-docker compose build codex-bridge
-docker compose run --rm --entrypoint codex codex-bridge login
-docker compose run --rm --entrypoint codex codex-bridge login status
+docker compose --env-file /srv/infra/raspberry-infra/env/n8n.env build codex-bridge
+docker compose --env-file /srv/infra/raspberry-infra/env/n8n.env run --rm --entrypoint codex codex-bridge login
+docker compose --env-file /srv/infra/raspberry-infra/env/n8n.env run --rm --entrypoint codex codex-bridge login status
 ```
-
-Le bridge limite la concurrence à 1 par défaut pour protéger le quota Codex. Il accepte également un JSON Schema afin de produire une sortie structurée exploitable directement par n8n.
-
-Voir `../codex-bridge/README.md` pour le contrat HTTP.
 
 ## Browser automations
 
-Le worker Playwright partagé est appelé depuis n8n avec un node HTTP Request, par exemple :
+Le worker Playwright est générique.
+
+Variables côté n8n :
 
 ```text
-POST http://browser-automations:3000/run/hellcase.daily
+BROWSER_AUTOMATIONS_URL=http://browser-automations:3000
+AUTOMATION_API_TOKEN=<token partagé>
 ```
+
+Contrat :
+
+```text
+POST {{$env.BROWSER_AUTOMATIONS_URL}}/run/<automation-id>
+Authorization: Bearer {{$env.AUTOMATION_API_TOKEN}}
+```
+
+Les noms de sites, paramètres et procédures de session restent dans les modules métier.
+
+## Compatibilité prospection
+
+Les variables `SEARXNG_BASE_URL`, `LINKEDIN_WORKER_URL`, `ARGOS_BASE_URL`, `N8N_REVIEW_FORM_URL` et `DRY_RUN` sont conservées temporairement pour faciliter la migration de l'ancien stack `prospection-auto`.
+
+Elles pourront être retirées de l'infra centrale quand ces dépendances seront entièrement modularisées.
 
 ## Déploiement
 
-Le workflow GitHub fourni est volontairement manuel afin de ne pas migrer automatiquement l'instance n8n existante lors du merge.
+Le workflow **Deploy central n8n** reste manuel.
 
-Une fois la migration préparée, lancer **Deploy central n8n** depuis GitHub Actions.
+Il :
+
+1. checkout `main` ;
+2. crée/vérifie `automation` ;
+3. s'authentifie à GHCR ;
+4. charge le fichier d'environnement persistant ;
+5. valide le compose ;
+6. pull l'image n8n ;
+7. build `codex-bridge` ;
+8. lance les services.
+
+Cette approche évite de perdre les secrets locaux lors du nettoyage du workspace GitHub Actions.

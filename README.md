@@ -1,115 +1,109 @@
 # 🏗️ Raspberry Infrastructure
 
-Ce dépôt contient **l’infrastructure commune** de mon homelab sur Raspberry Pi 5.
-Il ne contient pas les projets applicatifs (WordPress, Java, Next, etc.), mais uniquement les briques
-qui servent de fondation :
+Infrastructure commune du homelab Raspberry Pi 5.
 
-- Reverse Proxy (Traefik / Nginx Proxy Manager)
-- Bases de données partagées
-- Réseaux Docker communs
-- Services transverses d’infra
-- Instance n8n centrale pour les workflows du homelab
+Ce dépôt contient les briques transverses partagées par plusieurs projets. Les applications métier restent dans leurs propres repositories.
 
----
+## Architecture
 
-## 🎯 Objectif
-
-Fournir une base stable pour :
-- héberger plusieurs projets web
-- gérer proprement les domaines et certificats
-- centraliser les bases de données
-- séparer proprement infra / apps
-
----
-
-## 🧱 Architecture
-
+```text
+Raspberry Pi 5
+│
+├── proxy
+│   └── Traefik
+│
+├── databases
+│   └── bases partagées
+│
+└── automation platform
+    ├── n8n
+    │   └── orchestration, schedules, retries, validations
+    ├── codex-bridge
+    │   └── accès LLM interne pour n8n
+    ├── codex-runtime
+    │   └── image Codex versionnée commune
+    └── browser-automations
+        └── Playwright / Chromium / sessions persistantes
 ```
+
+## Dossiers principaux
+
+```text
 /infra
-  /proxy          -> reverse proxy principal (80/443)
-  /databases      -> instance(s) DB partagées
-  /secure-db      -> DB isolée pour projet critique (optionnel)
-  /n8n            -> instance n8n centrale et persistante
-```
-Les projets applicatifs tournent dans des dépôts séparés et utilisent l’infra via :
-- réseaux Docker communs
-- URLs exposées via proxy
-
----
-
-## 🌐 Réseaux Docker
-
-Deux types de réseaux :
-
-### 🔹 Réseau proxy (commun)
-Réseau Docker externe partagé pour tout ce qui doit être exposé publiquement :
-
-`docker network create proxy`
-
-Tous les services “web” s’y connectent + le reverse proxy.
-
-### 🔹 Réseaux internes
-Chaque projet gère ses réseaux internes indépendamment.
-Dans ce repo : réseaux pour DB si besoin d’isolement.
-
----
-
-## 🗄️ Bases de Données
-
-### DB principale (mutualisée)
-- 1 instance
-- plusieurs bases (une par projet)
-- utilisateurs séparés
-
-### DB sécurisée (optionnelle)
-- instance isolée
-- réservée au projet critique
-- réseau privé dédié
-
----
-
-## 🚀 Déploiement
-
-📌 via **GitHub Actions Self-Hosted Runner (Raspberry)**
-
-Sur le Raspberry :
-
-```
-git clone https://github.com/....../raspberry-infra.git
-cd raspberry-infra
-cd infra/proxy && docker compose up -d
-cd ../databases && docker compose up -d
+  /proxy
+  /databases
+  /n8n
+  /codex-bridge
+  /codex-runtime
+  /automations
 ```
 
----
+## Réseaux Docker
 
-## 🔐 Sécurité
+### `proxy`
 
-- Aucun mot de passe dans le repo
-- `.env` locaux uniquement
-- DB Admin UI non publique
-- HTTPS via Reverse Proxy
+Réseau externe utilisé par Traefik et les services volontairement exposés en HTTP/HTTPS.
 
----
+```bash
+docker network create proxy
+```
 
-## 📦 CI/CD
+### `automation`
 
-- workflows GitHub
-- runner `self-hosted` + `raspberry`
+Réseau externe privé utilisé par n8n et les services transverses d'automatisation.
 
----
+```bash
+docker network create automation
+```
 
-## ✅ Checklist avant production
+`codex-bridge` et `browser-automations` n'exposent pas de port public.
 
-- [ ] Docker installé
-- [ ] Réseau `proxy` créé
-- [ ] Runner GitHub opérationnel
-- [ ] Certificats configurés
-- [ ] `.env` présents (hors repo)
-- [ ] Monitoring opérationnel
+n8n est lié à `127.0.0.1:5678` par défaut. Une exposition distante doit passer explicitement par le proxy ou une autre configuration maîtrisée.
 
----
+## Images partagées
 
-## 📜 Licence
+GHCR est utilisé pour les images internes réutilisables, notamment :
+
+```text
+ghcr.io/dokor/codex-runtime:<version>
+ghcr.io/dokor/browser-automations:<version>
+```
+
+Les images de runtime importantes doivent être versionnées. Éviter de faire dépendre la production implicitement de `:latest`.
+
+## Configuration et secrets
+
+- aucun secret versionné ;
+- les exemples vivent dans des `.env.example` ;
+- les valeurs de production sont stockées hors du checkout GitHub Actions ;
+- n8n utilise par défaut `/srv/infra/raspberry-infra/env/n8n.env` ;
+- les tokens CI restent dans GitHub Actions Secrets.
+
+## CI/CD
+
+Les déploiements utilisent le runner GitHub Actions :
+
+```text
+self-hosted + raspberry
+```
+
+Les workflows ne suivent pas tous la même cadence :
+
+- certains services simples peuvent être redéployés sur modification de `main` ;
+- les migrations sensibles, comme n8n, restent déclenchées manuellement ;
+- les images partagées sont construites et publiées sur GHCR depuis GitHub Actions.
+
+Voir `DEPLOYMENT_GUIDE.md` pour les conventions.
+
+## Sécurité
+
+- Traefik reste le point d'entrée HTTP/HTTPS public ;
+- pas de DB Admin UI publique ;
+- pas de secrets dans Git ;
+- services internes sur des réseaux Docker privés ;
+- UFW / Fail2ban côté hôte ;
+- images et runtimes sensibles versionnés.
+
+## Licence
 
 Usage personnel.
