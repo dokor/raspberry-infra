@@ -20,6 +20,10 @@ services:
       CODEX_BRIDGE_URL: ${CODEX_BRIDGE_URL:-http://codex-bridge:3010}
       CODEX_BRIDGE_TOKEN: ${CODEX_BRIDGE_TOKEN:?CODEX_BRIDGE_TOKEN is required}
 
+      # Shared browser automation worker
+      BROWSER_AUTOMATIONS_URL: ${BROWSER_AUTOMATIONS_URL:-http://browser-automations:3000}
+      AUTOMATION_API_TOKEN: ${AUTOMATION_API_TOKEN:?AUTOMATION_API_TOKEN is required}
+
       # Module: prospection-auto
       SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
       LINKEDIN_WORKER_URL: ${LINKEDIN_WORKER_URL:-http://linkedin-worker:3000}
