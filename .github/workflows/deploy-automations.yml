@@ -1,0 +1,42 @@
+name: Deploy shared browser automations
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/automations/**"
+      - ".github/workflows/deploy-automations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - raspberry
+    env:
+      AUTOMATION_API_TOKEN: ${{ secrets.AUTOMATION_API_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure automation network
+        run: |
+          docker network inspect automation >/dev/null 2>&1 || docker network create automation
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy browser automations
+        working-directory: infra/automations
+        run: |
+          docker compose pull
+          docker compose up -d --remove-orphans
