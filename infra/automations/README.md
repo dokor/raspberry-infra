@@ -2,7 +2,7 @@
 
 Ce dossier déploie le **worker Playwright partagé** de la plateforme d'automatisation du homelab.
 
-Il complète l'instance n8n centrale de `../n8n` :
+Il complète l'instance n8n centrale :
 
 ```text
                          n8n
@@ -14,7 +14,8 @@ Il complète l'instance n8n centrale de `../n8n` :
    codex-bridge                  browser-automations
    LLM / Codex                   Playwright / Chromium
                                            |
-                                           +-- hellcase.daily
+                                           +-- automation A
+                                           +-- automation B
                                            +-- futurs modules
 ```
 
@@ -34,7 +35,7 @@ Il complète l'instance n8n centrale de `../n8n` :
 - Playwright / Chromium ;
 - logique DOM propre aux sites ;
 - sessions navigateur persistantes ;
-- verrouillage d'une même automatisation pour éviter les exécutions concurrentes.
+- verrouillage des exécutions concurrentes.
 
 Il n'y a donc **ni cron, ni notification métier, ni seconde instance n8n** dans ce service.
 
@@ -47,8 +48,6 @@ Le worker n'expose aucun port sur l'hôte. Il est joignable uniquement par les a
 ```text
 http://browser-automations:3000
 ```
-
-La stack n8n centrale est apportée par les PR parentes de cette PR stackée ; aucune modification manuelle d'un ancien compose n8n n'est nécessaire.
 
 ## Authentification interne
 
@@ -76,23 +75,20 @@ Il :
 3. récupère `ghcr.io/dokor/browser-automations:latest` ;
 4. redémarre uniquement le worker.
 
-## Session navigateur
+L'image `ghcr.io/dokor/browser-automations:latest` doit être publiée avant le premier déploiement de cette stack. L'infrastructure ne dépend pas de l'identité d'un module métier particulier.
+
+## Sessions navigateur
 
 Les sessions sont persistées dans le volume Docker `browser-automation-data`.
 
-Pour Hellcase, créer d'abord `hellcase-session.json` depuis une machine avec interface graphique, puis copier le fichier une seule fois :
-
-```bash
-docker cp /tmp/hellcase-session.json browser-automations:/app/data/hellcase-session.json
-rm /tmp/hellcase-session.json
-```
+La création et l'installation d'une session spécifique à un site sont documentées avec le module concerné, pas dans ce repository d'infrastructure.
 
 ## Appel depuis n8n
 
-Exemple :
+Le contrat générique est :
 
 ```http
-POST http://browser-automations:3000/run/hellcase.daily
+POST http://browser-automations:3000/run/<automation-id>
 Authorization: Bearer <AUTOMATION_API_TOKEN>
 ```
 
@@ -109,12 +105,4 @@ Le flux cible est :
 3. ajouter/versionner le workflow n8n correspondant dans le repository métier ;
 4. laisser n8n planifier et orchestrer l'appel.
 
-## Dépendance applicative
-
-L'image est produite par `dokor/hellcase-daily#3`, qui transforme le projet historique Hellcase en worker générique multi-automatisations.
-
-Cette PR d'infrastructure ne doit être déployée qu'après publication réussie de :
-
-```text
-ghcr.io/dokor/browser-automations:latest
-```
+Les paramètres et procédures propres à un site restent avec son module et ne remontent pas dans `raspberry-infra`.
