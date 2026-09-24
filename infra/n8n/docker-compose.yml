@@ -1,0 +1,36 @@
+services:
+  n8n:
+    image: ${N8N_IMAGE:-n8nio/n8n:latest}
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-false}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      TZ: ${TZ:-Europe/Brussels}
+
+      # Module: prospection-auto
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
+      LINKEDIN_WORKER_URL: ${LINKEDIN_WORKER_URL:-http://linkedin-worker:3000}
+      ARGOS_BASE_URL: ${ARGOS_BASE_URL:-https://argos.lelouet.fr}
+      N8N_REVIEW_FORM_URL: ${N8N_REVIEW_FORM_URL:-http://localhost:5678/form/prospect-review}
+      DRY_RUN: ${DRY_RUN:-true}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - automation
+
+networks:
+  automation:
+    external: true
+
+volumes:
+  n8n_data:
+    name: ${N8N_DATA_VOLUME:-prospection-auto_n8n_data}
