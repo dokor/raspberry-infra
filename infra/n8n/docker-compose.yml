@@ -1,10 +1,10 @@
 services:
   n8n:
-    image: ${N8N_IMAGE:-n8nio/n8n:latest}
+    image: ${N8N_IMAGE:?N8N_IMAGE must be set to a pinned n8n tag}
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "${N8N_BIND_ADDRESS:-127.0.0.1}:5678:5678"
     environment:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
@@ -20,7 +20,11 @@ services:
       CODEX_BRIDGE_URL: ${CODEX_BRIDGE_URL:-http://codex-bridge:3010}
       CODEX_BRIDGE_TOKEN: ${CODEX_BRIDGE_TOKEN:?CODEX_BRIDGE_TOKEN is required}
 
-      # Module: prospection-auto
+      # Shared browser automation worker
+      BROWSER_AUTOMATIONS_URL: ${BROWSER_AUTOMATIONS_URL:-http://browser-automations:3000}
+      AUTOMATION_API_TOKEN: ${AUTOMATION_API_TOKEN:?AUTOMATION_API_TOKEN is required}
+
+      # Temporary migration compatibility: prospection-auto
       SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
       LINKEDIN_WORKER_URL: ${LINKEDIN_WORKER_URL:-http://linkedin-worker:3000}
       ARGOS_BASE_URL: ${ARGOS_BASE_URL:-https://argos.lelouet.fr}
@@ -41,7 +45,6 @@ services:
     environment:
       PORT: 3010
       CODEX_HOME: /home/node/.codex
-      CODEX_RUNTIME_IMAGE: ${CODEX_RUNTIME_IMAGE:-ghcr.io/dokor/codex-runtime:0.156.1-r1}
       CODEX_BRIDGE_TOKEN: ${CODEX_BRIDGE_TOKEN:?CODEX_BRIDGE_TOKEN is required}
       CODEX_MAX_CONCURRENCY: ${CODEX_MAX_CONCURRENCY:-1}
       CODEX_TIMEOUT_MS: ${CODEX_TIMEOUT_MS:-180000}
