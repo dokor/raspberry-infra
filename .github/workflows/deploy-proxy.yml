@@ -6,21 +6,67 @@ on:
     paths:
       - "infra/proxy/**"
       - ".github/workflows/deploy-proxy.yml"
+      - "scripts/proxy-state.mjs"
+      - "scripts/check-tls.mjs"
   workflow_dispatch:
+    inputs:
+      verify_host:
+        description: Public DNS hostname whose renewed certificate must have more than 30 days left
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-infra-proxy
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 15
     runs-on:
       - self-hosted
       - raspberry
+    env:
+      PROXY_DEPLOY_DIR: /srv/infra/raspberry-infra/proxy
+      PROXY_ENV_FILE: ${{ vars.PROXY_ENV_FILE || '/srv/infra/raspberry-infra/env/proxy.env' }}
+      TRAEFIK_ACME_FILE: ${{ vars.TRAEFIK_ACME_FILE || '/srv/infra/raspberry-infra/proxy/acme.json' }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          # Preserve the old checkout's runtime files until migration is complete.
+          path: proxy-source
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Preserve the live ACME account, certificates and proxy environment
+        id: state
+        run: node proxy-source/scripts/proxy-state.mjs
 
       - name: Deploy Traefik reverse proxy
-        working-directory: infra/proxy
+        env:
+          PROXY_PROJECT: ${{ steps.state.outputs.project }}
         run: |
-          [ -f acme.json ] || touch acme.json
-          chmod 600 acme.json
-          docker compose up -d --build --remove-orphans
+          # Runtime configuration must survive clean checkouts from other workflows too.
+          mkdir -p "$PROXY_DEPLOY_DIR/dynamic"
+          install -m 644 proxy-source/infra/proxy/traefik.yml "$PROXY_DEPLOY_DIR/traefik.yml"
+          install -m 644 proxy-source/infra/proxy/docker-compose.yml "$PROXY_DEPLOY_DIR/docker-compose.yml"
+          rsync -a --delete proxy-source/infra/proxy/dynamic/ "$PROXY_DEPLOY_DIR/dynamic/"
+          cd "$PROXY_DEPLOY_DIR"
+          docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" config --quiet
+          # Re-read static ACME configuration and run Traefik's startup renewal check.
+          # Portainer and its legacy data mount are deliberately not recreated.
+          docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" up -d --no-deps --force-recreate traefik
+
+      - name: Verify the public certificate after renewal
+        if: inputs.verify_host != '' || vars.PROXY_TLS_VERIFY_HOST != ''
+        env:
+          VERIFY_HOST: ${{ inputs.verify_host || vars.PROXY_TLS_VERIFY_HOST }}
+        run: node proxy-source/scripts/check-tls.mjs

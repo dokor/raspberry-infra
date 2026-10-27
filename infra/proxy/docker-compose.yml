@@ -5,7 +5,7 @@ services:
     ports:
       - "${PORTAINER_PORT}:9000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock      
+      - /var/run/docker.sock:/var/run/docker.sock
       - ./config/portainer:/data
     restart: unless-stopped
     networks:
@@ -29,9 +29,9 @@ services:
       - /run/docker.sock:/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
-      - ./acme.json:/acme.json
+      - ${TRAEFIK_ACME_FILE:?Set an absolute persistent ACME file outside the checkout}:/acme.json
     env_file:
-      - .env
+      - ${PROXY_ENV_FILE:?Set an absolute persistent proxy environment file}
     networks:
       - proxy
     labels:

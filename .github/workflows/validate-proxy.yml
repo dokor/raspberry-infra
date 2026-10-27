@@ -1,0 +1,27 @@
+name: Validate proxy state and TLS checks
+on:
+  pull_request:
+    paths: ['infra/proxy/**', 'scripts/proxy-state*', 'scripts/check-tls*', '.github/workflows/deploy-proxy.yml', '.github/workflows/validate-proxy.yml']
+permissions:
+  contents: read
+jobs:
+  proxy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+      - run: node --test scripts/proxy-state.test.mjs scripts/check-tls.test.mjs
+      - name: Validate Compose with synthetic external state paths
+        env:
+          PROXY_ENV_FILE: /tmp/proxy-validation.env
+          TRAEFIK_ACME_FILE: /tmp/proxy-validation-acme.json
+          PORTAINER_PORT: '9000'
+          TRAEFIK_DASHBOARD_DOMAIN: traefik.example.com
+        run: |
+          touch "$PROXY_ENV_FILE" "$TRAEFIK_ACME_FILE"
+          docker compose -f infra/proxy/docker-compose.yml config --quiet
