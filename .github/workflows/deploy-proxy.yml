@@ -30,6 +30,7 @@ jobs:
       - self-hosted
       - raspberry
     env:
+      PROXY_DEPLOY_DIR: /srv/infra/raspberry-infra/proxy
       PROXY_ENV_FILE: ${{ vars.PROXY_ENV_FILE || '/srv/infra/raspberry-infra/env/proxy.env' }}
       TRAEFIK_ACME_FILE: ${{ vars.TRAEFIK_ACME_FILE || '/srv/infra/raspberry-infra/proxy/acme.json' }}
 
@@ -50,10 +51,15 @@ jobs:
         run: node proxy-source/scripts/proxy-state.mjs
 
       - name: Deploy Traefik reverse proxy
-        working-directory: proxy-source/infra/proxy
         env:
           PROXY_PROJECT: ${{ steps.state.outputs.project }}
         run: |
+          # Runtime configuration must survive clean checkouts from other workflows too.
+          mkdir -p "$PROXY_DEPLOY_DIR/dynamic"
+          install -m 644 proxy-source/infra/proxy/traefik.yml "$PROXY_DEPLOY_DIR/traefik.yml"
+          install -m 644 proxy-source/infra/proxy/docker-compose.yml "$PROXY_DEPLOY_DIR/docker-compose.yml"
+          rsync -a --delete proxy-source/infra/proxy/dynamic/ "$PROXY_DEPLOY_DIR/dynamic/"
+          cd "$PROXY_DEPLOY_DIR"
           docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" config --quiet
           # Re-read static ACME configuration and run Traefik's startup renewal check.
           # Portainer and its legacy data mount are deliberately not recreated.

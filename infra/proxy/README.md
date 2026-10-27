@@ -28,7 +28,11 @@ la fusion, avec les valeurs opérateur existantes, notamment `PORTAINER_PORT` et
 exemples. Cette procédure migre une installation existante avec un compte ACME ;
 elle ne crée pas automatiquement une nouvelle autorité ni un compte vide.
 
-Le checkout est isolé sous `proxy-source`. Le workflow recrée uniquement Traefik,
+Le checkout est isolé sous `proxy-source`. Les deux fichiers Compose/Traefik et
+le répertoire dynamique sont synchronisés séparément dans
+`/srv/infra/raspberry-infra/proxy`, sans copier ni supprimer le magasin ACME.
+Ainsi, le nettoyage d'un autre workflow ne retire pas les fichiers montés par
+le proxy. Le workflow recrée uniquement Traefik,
 avec le nom de projet Compose existant ; Portainer et son montage de données
 historique ne sont pas recréés. Une courte interruption du proxy est donc prévue
 pendant l'application. Le magasin ancien reste disponible pour la sauvegarde ;
