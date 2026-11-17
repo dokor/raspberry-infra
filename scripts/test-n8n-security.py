@@ -163,7 +163,7 @@ def main():
             compose('up', '-d', '--wait', '--wait-timeout', '240')
             # Public exposure is opt-in; bootstrap is possible only over loopback.
             assert request('/signin')[0] == 404
-            password = 'Synthetic-CI-only-password!'
+            password = 'Synthetic-CI-only-password1!'
             email = 'owner@example.invalid'
             code, _, _ = request('/rest/owner/setup', internal=True, body={
                 'email': email, 'password': password, 'firstName': 'Synthetic', 'lastName': 'Owner'})
