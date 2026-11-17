@@ -58,3 +58,10 @@ ancienne du magasin : un renouvellement réussi doit rester conservé.
 
 Références : [configuration et fenêtre ACME de Traefik](https://doc.traefik.io/traefik/v3.6/reference/install-configuration/tls/certificate-resolvers/acme/),
 [contrôle de renouvellement au démarrage, Traefik v3.6.1](https://github.com/traefik/traefik/blob/v3.6.1/pkg/provider/acme/provider.go).
+# Déploiement manuel et passerelle n8n
+
+Le workflow proxy est désormais **manuel uniquement**. Le dashboard HTTP est
+désactivé, le fournisseur Docker utilise un proxy d'API en lecture seule sur un
+réseau interne, et `n8n_ingress` est réservé à Traefik/n8n/Authelia. La procédure
+[n8n HTTPS + MFA](../n8n/SECURE-ACCESS.md) doit être suivie avant toute ouverture.
+Portainer n'est pas recréé : son exposition réelle doit être contrôlée séparément.

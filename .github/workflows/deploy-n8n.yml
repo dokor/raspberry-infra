@@ -19,6 +19,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Refuse to overwrite an installed secure configuration
+        run: |
+          test ! -f /srv/infra/raspberry-infra/n8n/secure-installed || {
+            echo 'Use the secure deployment procedure; the legacy compose would remove its protections.' >&2
+            exit 1
+          }
+
       - name: Ensure automation network
         run: |
           set -Eeuo pipefail

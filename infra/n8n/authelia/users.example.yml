@@ -1,0 +1,9 @@
+# Install privately as N8N_SECURITY_DIR/users.yml; never commit the real hash.
+# Generate using: authelia crypto hash generate argon2 (interactive prompt).
+users:
+  antoine:
+    disabled: false
+    displayname: Antoine
+    password: REPLACE_WITH_ARGON2ID_HASH
+    email: a.lelouet.freelance@gmail.com
+    groups: []

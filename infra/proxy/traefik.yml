@@ -1,18 +1,23 @@
 api:
-  dashboard: true
+  dashboard: false
+  insecure: false
 
 log:
-  level: DEBUG
+  level: INFO
 
 entryPoints:
   web:
     address: ":80"
+    forwardedHeaders:
+      insecure: false
   websecure:
     address: ":443"
+    forwardedHeaders:
+      insecure: false
 
 providers:
   docker:
-    endpoint: "unix:///var/run/docker.sock"
+    endpoint: "tcp://docker-socket-proxy:2375"
     exposedByDefault: false
   file:
     directory: "/etc/traefik/dynamic"

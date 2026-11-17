@@ -17,7 +17,7 @@ services:
       retries: 10
 
   traefik:
-    image: traefik:v3.6.1
+    image: traefik:v3.7.19
     container_name: traefik
     restart: unless-stopped
     command:
@@ -26,7 +26,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /run/docker.sock:/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
       - ${TRAEFIK_ACME_FILE:?Set an absolute persistent ACME file outside the checkout}:/acme.json
@@ -34,18 +33,37 @@ services:
       - ${PROXY_ENV_FILE:?Set an absolute persistent proxy environment file}
     networks:
       - proxy
+      - docker_api
+      - n8n_ingress
+    security_opt: [no-new-privileges:true]
+    depends_on: [docker-socket-proxy]
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dashboard.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=web"
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      traefik.enable: "false"
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      EVENTS: "1"
+      PING: "1"
+      VERSION: "1"
+      POST: "0"
+      AUTH: "0"
+      SECRETS: "0"
+      LOG_LEVEL: warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker_api]
+    security_opt: [no-new-privileges:true]
 
 networks:
+  docker_api:
+    internal: true
+  n8n_ingress:
+    external: true
+    name: n8n_ingress
   proxy:
     external: true
     name: proxy
-
-
-
-
-

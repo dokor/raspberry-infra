@@ -1,0 +1,48 @@
+server:
+  address: tcp://:9091
+  disable_healthcheck: true
+log:
+  level: info
+  format: json
+theme: auto
+default_2fa_method: totp
+totp:
+  issuer: n8n.lelouet.fr
+  period: 30
+  skew: 1
+authentication_backend:
+  password_reset:
+    disable: true
+  file:
+    path: /config/users.yml
+    watch: false
+access_control:
+  default_policy: deny
+  rules:
+    - domain: n8n.lelouet.fr
+      subject: user:antoine
+      policy: two_factor
+session:
+  name: __Secure-n8n_gate
+  same_site: lax
+  inactivity: 15m
+  expiration: 2h
+  remember_me: -1
+  cookies:
+    - domain: n8n.lelouet.fr
+      authelia_url: https://auth.n8n.lelouet.fr
+      default_redirection_url: https://n8n.lelouet.fr
+regulation:
+  modes: [user, ip]
+  max_retries: 5
+  find_time: 2m
+  ban_time: 15m
+storage:
+  local:
+    path: /data/db.sqlite3
+notifier:
+  filesystem:
+    filename: /data/notifications.txt
+# The isolated container cannot query NTP. Synchronize and verify the host clock.
+ntp:
+  disable_startup_check: true

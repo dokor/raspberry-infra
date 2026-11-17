@@ -148,3 +148,8 @@ Il :
 8. lance les services.
 
 Cette approche évite de perdre les secrets locaux lors du nettoyage du workspace GitHub Actions.
+# Accès extérieur protégé
+
+Pour `n8n.lelouet.fr`, suivre [SECURE-ACCESS.md](SECURE-ACCESS.md). L'overlay
+`compose.secure.yml` ajoute la passerelle MFA personnelle et le durcissement ;
+il ne doit être appliqué qu'après sauvegarde, inventaire et recette de migration.
