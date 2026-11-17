@@ -198,11 +198,13 @@ def main():
                        '/webhook-waiting/test', '/form/test', '/form-test/test', '/form-waiting/test',
                        '/mcp/test', '/mcp-test/test', '/mcp-server/http', '/metrics', '/healthz/readiness',
                        '/rest/owner/setup', '/rest/invitations', '/rest/resolve-signup-token',
-                       '/API/v1/workflows', '/%61pi/v1/workflows', '/webhook%2Ftest')
+                       '/API/v1/workflows', '/%61pi/v1/workflows', '/webhook%2Ftest',
+                       '/%77ebhook%2Ftest', '/api%2Fv1/workflows', '/%2Fapi/v1/workflows',
+                       '/webhook%252Ftest', '/webhook%5Ctest')
             for path in blocked:
                 code, _, body = request(path)
                 assert (code == 404 and body.strip() == '404 page not found') or (
-                    '%2F' in path and code == 400), (path, code)
+                    '%' in path and code == 400), (path, code)
             assert request('/api/v1/workflows', internal=True)[0] == 401
             assert request('/healthz/readiness', internal=True)[0] == 200
             print('PASS: machine APIs/triggers/bootstrap are blocked at the edge; local API remains', flush=True)

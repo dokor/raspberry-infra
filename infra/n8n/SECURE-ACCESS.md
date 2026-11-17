@@ -25,6 +25,8 @@ projets ou données. La configuration native n'est pas une liste d'emails autori
 Le proxy refuse intégralement depuis Internet `/api`, les webhooks, formulaires,
 MCP, métriques et contrôles de santé, ainsi que la création initiale du propriétaire
 et les invitations. Ces chemins renvoient 404, même avec une session n8n valide.
+Les chemins avec slash/backslash encodé ou double encodage sont aussi refusés ;
+les paramètres de requête, dont l'état OAuth, ne sont pas concernés par ce filtre.
 La synchronisation GitHub garde son API sur `127.0.0.1:5678`. Les formulaires de
 revue et triggers externes restent donc fermés : toute future ouverture doit avoir
 une authentification adaptée et une recette dédiée. Le MFA de la connexion n8n

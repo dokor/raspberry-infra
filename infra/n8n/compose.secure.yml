@@ -50,8 +50,8 @@ services:
       traefik.enable: "${N8N_INGRESS_ENABLED:-false}"
       traefik.docker.network: n8n_ingress
       # Keep machine APIs/triggers and initial owner setup off the public editor.
-      # $$ renders a literal $ in the Traefik regular expression.
-      traefik.http.routers.n8n.rule: 'Host(`n8n.lelouet.fr`) && !PathRegexp(`(?i)^/(api|webhook|webhook-test|webhook-waiting|form|form-test|form-waiting|mcp|mcp-test|mcp-server|metrics|healthz)(/|$$)`) && !PathRegexp(`(?i)^/rest/(owner/setup|invitations|resolve-signup-token)(/|$$)`)'
+      # Reject ambiguous path encodings; query strings (including OAuth state) are unaffected.
+      traefik.http.routers.n8n.rule: 'Host(`n8n.lelouet.fr`) && !PathRegexp(`(?i)^/(api|webhook|form|mcp|metrics|healthz)`) && !PathRegexp(`(?i)^/rest/(owner/setup|invitations|resolve-signup-token)`) && !PathRegexp(`(?i)%(2f|5c|25)`)'
       traefik.http.routers.n8n.entrypoints: websecure
       traefik.http.routers.n8n.tls.certresolver: le
       traefik.http.routers.n8n.tls.options: modern@file
