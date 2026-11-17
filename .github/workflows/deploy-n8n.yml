@@ -2,35 +2,13 @@ name: Deploy central n8n
 
 on:
   workflow_dispatch:
-    inputs:
-      operation:
-        description: Read-only diagnostic or explicit deployment
-        type: choice
-        default: diagnostic
-        options: [diagnostic, deploy]
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  diagnostic:
-    if: inputs.operation == 'diagnostic'
-    runs-on: [self-hosted, raspberry]
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          path: n8n-source
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.21.0'
-      - name: Read Raspberry state without changing services
-        run: node n8n-source/scripts/n8n-diagnostics.mjs
-
   deploy:
-    if: inputs.operation == 'deploy' && github.ref == 'refs/heads/main'
     runs-on:
       - self-hosted
       - raspberry
