@@ -94,7 +94,7 @@ jobs:
           restore_current=false
           applying=true
           compose up -d --no-deps --wait --wait-timeout 240 n8n task-runners
-          curl --fail --silent --show-error --max-time 10 \
+          curl --fail --silent --show-error --noproxy '*' --max-time 10 \
             http://127.0.0.1:5678/healthz/readiness >/dev/null
 
           if [ "$EXPOSE_EDITOR" = true ]; then
@@ -102,7 +102,7 @@ jobs:
             compose up -d --no-deps --wait --wait-timeout 240 n8n
             # Check this Raspberry's proxy and certificate without requiring NAT loopback.
             probe() {
-              curl --silent --show-error --max-time 5 --path-as-is \
+              curl --silent --show-error --noproxy '*' --max-time 5 --path-as-is \
                 --resolve n8n.lelouet.fr:443:127.0.0.1 \
                 --output /dev/null --write-out '%{http_code}' "https://n8n.lelouet.fr$1"
             }
