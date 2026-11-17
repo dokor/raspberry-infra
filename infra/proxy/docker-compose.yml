@@ -23,7 +23,9 @@ services:
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
+    # Existing mode-600 ACME store can belong to the deployment runner UID.
+    # No host directory or Docker socket is mounted into this container.
+    cap_add: [NET_BIND_SERVICE, DAC_OVERRIDE]
     command:
       - "--configFile=/traefik.yml"
     ports:

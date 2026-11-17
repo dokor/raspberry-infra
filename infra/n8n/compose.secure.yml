@@ -9,7 +9,9 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     read_only: true
-    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,uid=1000,gid=1000"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,uid=1000,gid=1000
+      - /home/node/.cache:rw,noexec,nosuid,size=128m,uid=1000,gid=1000
     environment:
       N8N_HOST: n8n.lelouet.fr
       N8N_PROTOCOL: https
