@@ -192,9 +192,9 @@ def main():
             print('PASS: correct password alone does not reach n8n', flush=True)
             # Seed a synthetic test TOTP using the supported admin CLI; never real user data.
             compose('exec', '-T', 'authelia', 'authelia', 'storage', 'user', 'totp',
-                    'generate', '--username', 'antoine')
+                    'generate', 'antoine')
             exported = compose('exec', '-T', 'authelia', 'authelia', 'storage', 'user', 'totp',
-                               'export', 'uri', '--username', 'antoine')
+                               'export', 'uri')
             uri = re.search(r'otpauth://[^\s]+', exported).group(0)
             params = urllib.parse.parse_qs(urllib.parse.urlparse(uri).query)
             secret = params['secret'][0]
