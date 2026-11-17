@@ -151,5 +151,5 @@ Cette approche évite de perdre les secrets locaux lors du nettoyage du workspac
 # Accès extérieur protégé
 
 Pour `n8n.lelouet.fr`, suivre [SECURE-ACCESS.md](SECURE-ACCESS.md). L'overlay
-`compose.secure.yml` ajoute la passerelle MFA personnelle et le durcissement ;
+`compose.secure.yml` prépare HTTPS, le MFA natif n8n et le durcissement ;
 il ne doit être appliqué qu'après sauvegarde, inventaire et recette de migration.

@@ -1,7 +1,7 @@
 http:
   routers:
     n8n-https:
-      rule: Host(`n8n.lelouet.fr`) || Host(`auth.n8n.lelouet.fr`)
+      rule: Host(`n8n.lelouet.fr`)
       entryPoints: [web]
       middlewares: [n8n-https]
       service: noop@internal
@@ -10,12 +10,6 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
-    n8n-auth:
-      forwardAuth:
-        address: http://n8n-authelia:9091/api/authz/forward-auth
-        trustForwardHeader: true
-        maxResponseBodySize: 8192
-        # Native n8n authentication stays enabled. No trusted-header SSO.
     n8n-headers:
       headers:
         stsSeconds: 31536000
