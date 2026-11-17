@@ -219,6 +219,11 @@ def main():
             compose('stop', 'authelia')
             assert request('n8n.lelouet.fr', cookies=True)[0] in (500, 502, 503)
             print('PASS: gateway outage denies access even with a previous session', flush=True)
+        except Exception:
+            # This stack contains synthetic credentials only and never executes business workflows.
+            for name in services:
+                print(compose('logs', '--tail', '35', name), flush=True)
+            raise
         finally:
             # Only disposable CI services and synthetic volumes from this named project.
             compose('down', '--volumes', '--remove-orphans')
