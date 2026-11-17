@@ -182,6 +182,7 @@ def main():
             assert request('n8n.lelouet.fr', extra=forged)[0] in (302, 303)
             print('PASS: anonymous paths and forged identity headers stay blocked', flush=True)
             policy = compose('exec', '-T', 'authelia', 'authelia', 'access-control', 'check-policy',
+                             '--config', '/config/configuration.yml',
                              '--url', 'https://n8n.lelouet.fr', '--username', 'someone-else')
             assert 'deny' in policy.lower(), policy
             code, _, _ = request('auth.n8n.lelouet.fr', '/api/firstfactor', cookies=True, body={
@@ -192,9 +193,9 @@ def main():
             print('PASS: correct password alone does not reach n8n', flush=True)
             # Seed a synthetic test TOTP using the supported admin CLI; never real user data.
             compose('exec', '-T', 'authelia', 'authelia', 'storage', 'user', 'totp',
-                    'generate', 'antoine')
+                    'generate', 'antoine', '--config', '/config/configuration.yml')
             exported = compose('exec', '-T', 'authelia', 'authelia', 'storage', 'user', 'totp',
-                               'export', 'uri')
+                               'export', 'uri', '--config', '/config/configuration.yml')
             uri = re.search(r'otpauth://[^\s]+', exported).group(0)
             params = urllib.parse.parse_qs(urllib.parse.urlparse(uri).query)
             secret = params['secret'][0]
@@ -207,7 +208,14 @@ def main():
                                 body={'token': token, 'targetURL': 'https://n8n.lelouet.fr'})
             assert code == 200, f'second factor: {code}'
             assert request('n8n.lelouet.fr', '/rest/settings', cookies=True)[0] == 200
+            assert request('n8n.lelouet.fr', '/rest/workflows', cookies=True)[0] == 401
             print('PASS: valid password + TOTP reaches native n8n login', flush=True)
+            denied = subprocess.run([*prefix, 'exec', '-T', 'docker-socket-proxy', 'wget', '-S',
+                                     '-O', '-', '--post-data={}',
+                                     'http://127.0.0.1:2375/containers/create'],
+                                    text=True, capture_output=True)
+            assert denied.returncode != 0 and '403' in denied.stderr
+            print('PASS: Docker API mutations are denied', flush=True)
             compose('stop', 'authelia')
             assert request('n8n.lelouet.fr', cookies=True)[0] in (500, 502, 503)
             print('PASS: gateway outage denies access even with a previous session', flush=True)

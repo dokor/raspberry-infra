@@ -20,6 +20,10 @@ services:
     image: traefik:v3.7.19
     container_name: traefik
     restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     command:
       - "--configFile=/traefik.yml"
     ports:
@@ -43,6 +47,7 @@ services:
   docker-socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy@sha256:fd989c12c74edb8424f53f31a2054459f286967c93e113e91ea95432f066493b
     restart: unless-stopped
+    cap_drop: [ALL]
     environment:
       CONTAINERS: "1"
       NETWORKS: "1"
