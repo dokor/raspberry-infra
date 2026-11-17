@@ -1,0 +1,26 @@
+http:
+  routers:
+    n8n-https:
+      rule: Host(`n8n.lelouet.fr`)
+      entryPoints: [web]
+      middlewares: [n8n-https]
+      service: noop@internal
+  middlewares:
+    n8n-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    n8n-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: false
+        stsPreload: false
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        customResponseHeaders:
+          X-Robots-Tag: noindex, nofollow
+    n8n-rate:
+      rateLimit:
+        average: 30
+        burst: 60
+        period: 1s

@@ -1,13 +1,6 @@
 name: Deploy infra proxy (Traefik)
 
 on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - "infra/proxy/**"
-      - ".github/workflows/deploy-proxy.yml"
-      - "scripts/proxy-state.mjs"
-      - "scripts/check-tls.mjs"
   workflow_dispatch:
     inputs:
       verify_host:
@@ -54,6 +47,9 @@ jobs:
         env:
           PROXY_PROJECT: ${{ steps.state.outputs.project }}
         run: |
+          set -Eeuo pipefail
+          docker network inspect n8n_ingress >/dev/null 2>&1 || docker network create --internal n8n_ingress
+          test "$(docker network inspect n8n_ingress --format '{{.Internal}}')" = true
           # Runtime configuration must survive clean checkouts from other workflows too.
           mkdir -p "$PROXY_DEPLOY_DIR/dynamic"
           install -m 644 proxy-source/infra/proxy/traefik.yml "$PROXY_DEPLOY_DIR/traefik.yml"
@@ -63,6 +59,8 @@ jobs:
           docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" config --quiet
           # Re-read static ACME configuration and run Traefik's startup renewal check.
           # Portainer and its legacy data mount are deliberately not recreated.
+          docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" pull docker-socket-proxy traefik
+          docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" up -d docker-socket-proxy
           docker compose --project-name "$PROXY_PROJECT" --env-file "$PROXY_ENV_FILE" up -d --no-deps --force-recreate traefik
 
       - name: Verify the public certificate after renewal

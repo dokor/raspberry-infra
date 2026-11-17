@@ -1,0 +1,24 @@
+name: Validate n8n security boundary
+on:
+  pull_request:
+    paths:
+      - infra/n8n/**
+      - infra/proxy/**
+      - scripts/test-n8n-security.py
+      - .github/workflows/validate-n8n-security.yml
+permissions:
+  contents: read
+jobs:
+  isolated-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install PyYAML==6.0.3
+      - name: Exercise real TLS, MFA, n8n and denied access paths with synthetic data
+        run: python scripts/test-n8n-security.py

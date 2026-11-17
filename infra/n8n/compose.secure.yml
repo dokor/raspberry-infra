@@ -1,0 +1,94 @@
+# Explicit opt-in. Always combine with docker-compose.yml; never run a second n8n.
+# Requires Compose >= 2.24.4 for !override. The editor route stays CLOSED by default.
+services:
+  n8n:
+    image: n8nio/n8n:2.47.7
+    ports: !override
+      - "127.0.0.1:5678:5678"
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,uid=1000,gid=1000
+      - /home/node/.cache:rw,noexec,nosuid,size=128m,uid=1000,gid=1000
+    environment:
+      N8N_HOST: n8n.lelouet.fr
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: https://n8n.lelouet.fr
+      WEBHOOK_URL: https://n8n.lelouet.fr/
+      N8N_WEBHOOK_URL: https://n8n.lelouet.fr/
+      N8N_PROXY_HOPS: "1"
+      N8N_SECURE_COOKIE: "true"
+      # Makes MFA available; Antoine must enroll his account BEFORE opening ingress.
+      # This is not the paid instance-wide MFA enforcement policy.
+      N8N_MFA_ENABLED: "true"
+      N8N_SKIP_AUTH_ON_OAUTH_CALLBACK: "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+      N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES: "true"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_COMMUNITY_PACKAGES_ENABLED: "false"
+      N8N_UNVERIFIED_PACKAGES_ENABLED: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_RUNNERS_MODE: external
+      N8N_RUNNERS_BROKER_LISTEN_ADDRESS: 0.0.0.0
+      N8N_RUNNERS_AUTH_TOKEN_FILE: /run/secrets/runner_token
+      N8N_SSRF_PROTECTION_ENABLED: "true"
+      N8N_SSRF_BLOCKED_IP_RANGES: default,100.64.0.0/10
+      N8N_SSRF_ALLOWED_HOSTNAMES: codex-bridge,browser-automations,searxng,linkedin-worker
+      NODES_EXCLUDE: '["n8n-nodes-base.executeCommand","n8n-nodes-base.ssh","n8n-nodes-base.readWriteFile","n8n-nodes-base.readBinaryFile","n8n-nodes-base.writeBinaryFile","n8n-nodes-base.localFileTrigger","n8n-nodes-base.function","n8n-nodes-base.functionItem","@n8n/n8n-nodes-langchain.code"]'
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "168"
+      EXECUTIONS_DATA_PRUNE_MAX_COUNT: "10000"
+      N8N_REVIEW_FORM_URL: https://n8n.lelouet.fr/form/prospect-review
+    secrets: [runner_token]
+    networks:
+      - n8n_ingress
+      - runners
+    labels:
+      traefik.enable: "${N8N_INGRESS_ENABLED:-false}"
+      traefik.docker.network: n8n_ingress
+      # Keep machine APIs/triggers and initial owner setup off the public editor.
+      # Reject ambiguous path encodings; query strings (including OAuth state) are unaffected.
+      traefik.http.routers.n8n.rule: 'Host(`n8n.lelouet.fr`) && !PathRegexp(`(?i)^/(api|webhook|form|mcp|metrics|healthz)`) && !PathRegexp(`(?i)^/rest/(owner/setup|invitations|resolve-signup-token)`) && !PathRegexp(`(?i)%(2f|5c|25)`)'
+      traefik.http.routers.n8n.entrypoints: websecure
+      traefik.http.routers.n8n.tls.certresolver: le
+      traefik.http.routers.n8n.tls.options: modern@file
+      traefik.http.routers.n8n.middlewares: n8n-headers@file,n8n-rate@file
+      traefik.http.services.n8n.loadbalancer.server.port: "5678"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:5678/healthz/readiness').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  task-runners:
+    image: n8nio/runners:2.47.7-distroless
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,uid=65532,gid=65532"]
+    environment:
+      N8N_RUNNERS_TASK_BROKER_URI: http://n8n:5679
+      N8N_RUNNERS_AUTH_TOKEN_FILE: /run/secrets/runner_token
+      N8N_RUNNERS_MAX_CONCURRENCY: "2"
+    secrets: [runner_token]
+    networks: [runners]
+    depends_on:
+      n8n:
+        condition: service_healthy
+
+networks:
+  n8n_ingress:
+    external: true
+    name: n8n_ingress
+  runners:
+    internal: true
+
+secrets:
+  runner_token:
+    file: ${N8N_SECURITY_DIR:?Private directory required}/runner_token
