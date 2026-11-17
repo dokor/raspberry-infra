@@ -2,58 +2,122 @@ name: Deploy central n8n
 
 on:
   workflow_dispatch:
+    inputs:
+      expose_editor:
+        description: Open HTTPS after the MFA, network and restoration checks in SECURE-ACCESS.md
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  packages: read
+
+concurrency:
+  group: deploy-central-n8n
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on:
-      - self-hosted
-      - raspberry
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 20
+    runs-on: [self-hosted, raspberry]
     env:
       N8N_ENV_FILE: ${{ vars.N8N_ENV_FILE || '/srv/infra/raspberry-infra/env/n8n.env' }}
+      N8N_DEPLOY_DIR: /srv/infra/raspberry-infra/n8n
+      N8N_BACKUP_DIR: /srv/infra/raspberry-infra/backups
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Refuse to overwrite an installed secure configuration
-        run: |
-          test ! -f /srv/infra/raspberry-infra/n8n/secure-installed || {
-            echo 'Use the secure deployment procedure; the legacy compose would remove its protections.' >&2
-            exit 1
-          }
-
-      - name: Ensure automation network
-        run: |
-          set -Eeuo pipefail
-          docker network inspect automation >/dev/null 2>&1 || docker network create automation
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: actions/checkout@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          path: n8n-source
+          persist-credentials: false
 
-      - name: Validate persistent n8n configuration
-        working-directory: infra/n8n
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Preserve the existing instance and prepare private runtime files
+        id: state
+        env:
+          N8N_SOURCE_DIR: ${{ github.workspace }}/n8n-source/infra/n8n
+        run: node n8n-source/scripts/n8n-state.mjs
+
+      - name: Back up and deploy the secure configuration
+        shell: bash
+        env:
+          N8N_PROJECT: ${{ steps.state.outputs.project }}
+          N8N_DATA_VOLUME: ${{ steps.state.outputs.volume }}
+          N8N_SECURITY_DIR: ${{ steps.state.outputs.securityDir }}
+          BACKUP_DIR: ${{ steps.state.outputs.backup }}
+          EXPOSE_EDITOR: ${{ inputs.expose_editor }}
         run: |
           set -Eeuo pipefail
-          test -f "$N8N_ENV_FILE" || {
-            echo "Missing persistent n8n env file: $N8N_ENV_FILE" >&2
-            echo "Create it from infra/n8n/.env.example outside the GitHub Actions checkout." >&2
-            exit 1
+          umask 077
+          cd "$N8N_DEPLOY_DIR"
+          export N8N_INGRESS_ENABLED=false
+          compose() {
+            docker compose -p "$N8N_PROJECT" --env-file "$N8N_ENV_FILE" \
+              -f docker-compose.yml -f compose.secure.yml "$@"
           }
+          compose config --quiet
+          compose pull n8n task-runners
 
-          docker compose --env-file "$N8N_ENV_FILE" config >/dev/null
+          restore_current=false
+          applying=false
+          cleanup() {
+            result=$?
+            trap - EXIT INT TERM
+            if [ "$result" -ne 0 ]; then
+              if [ "$restore_current" = true ]; then
+                docker start n8n >/dev/null || true
+              elif [ "$applying" = true ]; then
+                # Fail closed; do not downgrade or restore a database automatically.
+                export N8N_INGRESS_ENABLED=false
+                compose up -d --no-deps --wait --wait-timeout 120 n8n >/dev/null 2>&1 \
+                  || docker stop --time 30 n8n >/dev/null 2>&1 || true
+              fi
+              echo 'Deployment failed. Private backup retained; inspect locally before retrying.' >&2
+            fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
 
-      - name: Deploy n8n and Codex bridge
-        working-directory: infra/n8n
-        run: |
-          set -Eeuo pipefail
-          docker compose --env-file "$N8N_ENV_FILE" pull n8n
-          docker compose --env-file "$N8N_ENV_FILE" build --pull codex-bridge
-          docker compose --env-file "$N8N_ENV_FILE" up -d --remove-orphans
+          restore_current=true
+          docker stop --time 90 n8n >/dev/null
+          mkdir -m 700 "$BACKUP_DIR/data"
+          docker cp n8n:/home/node/.n8n/. "$BACKUP_DIR/data"
+          test -s "$BACKUP_DIR/data/database.sqlite"
+          # The stopped snapshot includes SQLite journals, binary data and local settings.
+          touch secure-installed
+          restore_current=false
+          applying=true
+          compose up -d --no-deps --wait --wait-timeout 240 n8n task-runners
+          curl --fail --silent --show-error --max-time 10 \
+            http://127.0.0.1:5678/healthz/readiness >/dev/null
+
+          if [ "$EXPOSE_EDITOR" = true ]; then
+            export N8N_INGRESS_ENABLED=true
+            compose up -d --no-deps --wait --wait-timeout 240 n8n
+            # Check this Raspberry's proxy and certificate without requiring NAT loopback.
+            probe() {
+              curl --silent --show-error --max-time 5 --path-as-is \
+                --resolve n8n.lelouet.fr:443:127.0.0.1 \
+                --output /dev/null --write-out '%{http_code}' "https://n8n.lelouet.fr$1"
+            }
+            ready=false
+            for attempt in {1..30}; do
+              if [ "$(probe /signin 2>/dev/null || true)" = 200 ]; then ready=true; break; fi
+              sleep 2
+            done
+            test "$ready" = true
+            for endpoint in /rest/workflows /rest/credentials /rest/executions; do
+              test "$(probe "$endpoint")" = 401
+            done
+            for endpoint in /api/v1/workflows /webhook/test /form/test /mcp/test /rest/owner/setup; do
+              test "$(probe "$endpoint")" = 404
+            done
+          fi
+          applying=false
+          echo 'Secure configuration deployed; no workflow activation or Gmail connection performed.'

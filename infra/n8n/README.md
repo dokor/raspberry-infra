@@ -134,20 +134,22 @@ Elles pourront être retirées de l'infra centrale quand ces dépendances seront
 
 ## Déploiement
 
-Le workflow **Deploy central n8n** reste manuel.
+Le workflow **Deploy central n8n** reste manuel, limité à `main`, et applique
+`docker-compose.yml` avec `compose.secure.yml`. Voir les prérequis dans
+[SECURE-ACCESS.md](SECURE-ACCESS.md) avant son lancement.
 
 Il :
 
-1. checkout `main` ;
-2. crée/vérifie `automation` ;
-3. s'authentifie à GHCR ;
-4. charge le fichier d'environnement persistant ;
-5. valide le compose ;
-6. pull l'image n8n ;
-7. build `codex-bridge` ;
-8. lance les services.
+1. vérifie le projet, le volume et les secrets de l'instance existante ;
+2. refuse un changement de version implicite et un stockage non pris en charge ;
+3. prépare les fichiers persistants et le secret du runner sans les publier ;
+4. sauvegarde les données SQLite à l'arrêt sur le Raspberry ;
+5. recrée uniquement n8n et ses runners, puis vérifie leur démarrage ;
+6. ouvre l'éditeur HTTPS seulement si `expose_editor` a été coché et contrôle les accès.
 
-Cette approche évite de perdre les secrets locaux lors du nettoyage du workspace GitHub Actions.
+Les secrets, snapshots et métadonnées de récupération restent privés sur le
+Raspberry. Aucun diagnostic distant ni activation de workflow métier n'est ajouté.
+Codex bridge doit déjà être installé ; ce déploiement ne le reconstruit pas.
 # Accès extérieur protégé
 
 Pour `n8n.lelouet.fr`, suivre [SECURE-ACCESS.md](SECURE-ACCESS.md). L'overlay

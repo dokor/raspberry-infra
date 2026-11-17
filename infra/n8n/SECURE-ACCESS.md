@@ -46,6 +46,8 @@ sur l'hôte avant l'ouverture de n8n. Il ne doit pas être accessible depuis Int
    proposées le 17/11/2026 : n8n/runners 2.47.7, Traefik 3.7.19,
    socket-proxy LTS épinglé par digest multiarchitecture. Ne pas rétrograder une instance plus récente. Tester toute
    migration de base sur une **copie**, surtout depuis n8n 1.x.
+   Le pipeline refuse tout écart entre la version n8n en cours et celle de l'overlay :
+   une migration de version doit être traitée et recettée séparément.
 2. Relever le projet Compose, le volume n8n et la clé de chiffrement existants.
    Conserver exactement cette clé et ce volume. Ne pas afficher le contenu du `.env`,
    le résultat complet de `docker inspect` ni `docker compose config` dans les logs.
@@ -75,13 +77,15 @@ Créer uniquement `n8n.lelouet.fr` vers l'IP publique (A, et AAAA seulement
 si IPv6 est également filtré/testé). Aucun wildcard nécessaire. Vérifier les CAA
 existants et l'accès Let's Encrypt HTTP-01. Aucun token OVH n'est nécessaire ici.
 
-Installer les fichiers de cette PR dans le dossier stable
-`/srv/infra/raspberry-infra/n8n`.
-Ne pas monter les fichiers d'un checkout GitHub Actions éphémère.
+Le workflow existant **Deploy central n8n** copie les fichiers dans le dossier stable
+`/srv/infra/raspberry-infra/n8n`, en conservant le nom de projet et le volume réellement
+monté. Il lit le `.env` persistant existant sans remplacer son contenu. Il compare la
+clé de chiffrement et les tokens partagés avec ceux de l'instance en cours, sans les
+imprimer. Une incohérence arrête le déploiement avant tout arrêt de n8n.
 
-Préparer `/srv/infra/raspberry-infra/env/n8n-security` hors Git, mode 700 :
+Il prépare le dossier `n8n-security` à côté du `.env`, hors Git, mode 700 :
 
-- `runner_token` : valeur aléatoire de 32 octets au minimum, créée sur le Raspberry
+- `runner_token` : valeur aléatoire de 32 octets, créée une seule fois sur le Raspberry
   et jamais imprimée. Le fichier doit être lisible par UID 1000 et 65532 via ses
   montages (mode 444 dans le répertoire parent 700 convient). Docker Compose local
   monte le fichier, sans chiffrement sur disque ni application de `uid/gid`.
@@ -94,12 +98,9 @@ application d'authentification, confirmer le code et sauvegarder les codes de
 récupération hors ligne. Ne communiquer ni QR code, ni secret, ni codes de secours.
 Tester la déconnexion puis une connexion avec mot de passe et TOTP avant la bascule.
 
-Ajouter au `.env` n8n privé existant, sans le remplacer :
-
-```dotenv
-N8N_SECURITY_DIR=/srv/infra/raspberry-infra/env/n8n-security
-N8N_INGRESS_ENABLED=false
-```
+Les valeurs `N8N_SECURITY_DIR`, `N8N_DATA_VOLUME` et `N8N_INGRESS_ENABLED` sont
+transmises explicitement par le pipeline à Compose ; aucun secret n'est à copier
+dans les paramètres GitHub. Il n'y a pas de job de diagnostic distant.
 
 ## Bascule contrôlée
 
@@ -109,33 +110,31 @@ Après approbation du déploiement et validation des conditions ci-dessus :
    crée le réseau interne `n8n_ingress`, conserve ACME, démarre le proxy Docker puis
    recrée Traefik. Vérifier les sites existants et les certificats après sa courte
    interruption. Le dashboard HTTP précédemment publié disparaît volontairement.
-2. Sur le Raspberry, utiliser **le nom de projet Compose existant** (à relever),
-   le `.env` existant et les deux fichiers, dans cet ordre :
-
-   ```sh
-   cd /srv/infra/raspberry-infra/n8n
-   # Renseigner PROJECT avec le nom relevé, sans inventer un nouveau projet.
-   export N8N_ENV_FILE=/srv/infra/raspberry-infra/env/n8n.env
-   docker compose -p "$PROJECT" --env-file "$N8N_ENV_FILE" \
-     -f docker-compose.yml -f compose.secure.yml config --quiet
-   docker compose -p "$PROJECT" --env-file "$N8N_ENV_FILE" \
-     -f docker-compose.yml -f compose.secure.yml pull n8n task-runners
-   ```
-
-3. Après sauvegarde à l'arrêt et répétition sur la copie isolée, installer
-   `secure-installed` dans ce dossier stable **avant** le redémarrage. Ce marqueur
-   empêche l'ancien workflow n8n de réinstaller sa configuration sans protection.
-   Démarrer seulement `n8n task-runners` avec les mêmes options Compose,
-   `up -d --wait`. Ne pas utiliser `down -v` ni `--remove-orphans` sur la production.
-   Vérifier la santé, l'enregistrement des runners, le maintien des workflows
-   inactifs et l'absence d'écoute LAN sur 5678. Le sync GitHub via loopback reste
-   utilisable : l'API publique n8n n'est pas désactivée globalement.
-4. Confirmer que l'instance et son compte MFA ont bien été conservés et qu'aucun
-   écran de création du propriétaire n'est attendu. Si ce n'est pas le cas, garder
-   la route fermée et corriger l'accès privé ; ne pas exposer l'assistant de création.
-5. Passer `N8N_INGRESS_ENABLED=true` uniquement après ces contrôles. Recréer le service
-   n8n avec les deux fichiers Compose, puis effectuer immédiatement la recette
-   suivante. Si un contrôle d'accès échoue, repasser à `false` et recréer n8n.
+2. Dans GitHub Actions, lancer **Deploy central n8n → Run workflow → main**, avec
+   `expose_editor` décoché pour la première application privée. Ce workflow reste
+   manuel ; une fusion ne le lance pas. Il exige le proxy sécurisé déjà en place,
+   Compose compatible, la même version n8n, un volume nommé et le stockage SQLite
+   standard. Un autre stockage exige une procédure de sauvegarde adaptée.
+3. Le pipeline télécharge les images avant l'arrêt, arrête n8n, copie tout le
+   répertoire de données puis recrée uniquement `n8n` et `task-runners` avec les deux
+   fichiers Compose. Il conserve `secure-installed` pour bloquer les anciens scripts
+   de déploiement et vérifie la santé. Il ne reconstruit pas Codex bridge, ne supprime
+   aucun volume/service orphelin et n'active aucun workflow métier.
+   Les snapshots sont dans `/srv/infra/raspberry-infra/backups/n8n-*`, accès privé,
+   avec les anciens fichiers Compose, les métadonnées et le `.env`. Ils contiennent
+   des secrets : jamais d'upload en artefact GitHub. Cette copie locale ne remplace
+   pas la sauvegarde chiffrée hors machine et l'essai de restauration préalables.
+4. Vérifier les runners, les workflows inactifs et le compte MFA via l'accès privé
+   d'administration. Le port 5678 devient loopback : l'ancienne adresse LAN ne donne
+   plus accès à l'éditeur. L'API locale de synchronisation reste disponible.
+5. Après ces contrôles, relancer le même workflow avec `expose_editor` coché. Ce
+   choix doit être fait explicitement à chaque déploiement public. Le pipeline
+   applique d'abord la configuration fermée, puis ouvre HTTPS et vérifie le certificat,
+   le refus des accès REST anonymes et les routes réservées. Ces requêtes visent le
+   proxy local avec le vrai nom TLS ; une recette depuis Internet reste nécessaire.
+   Une sauvegarde ratée relance l'ancien conteneur ; une application/recette ratée
+   referme l'accès public, ou arrête n8n si cette fermeture ne peut pas être appliquée.
+   Aucun retour de version ou restauration de base n'est tenté automatiquement.
 
 ## Recette obligatoire avant OAuth et avant toute campagne
 
@@ -171,6 +170,9 @@ sera recetté ensuite ; il n'est pas connecté par cette préparation.
 ## Retour arrière
 
 Fermer d'abord la route (`N8N_INGRESS_ENABLED=false`, recréer n8n avec l'overlay).
+Pour une intervention locale, conserver explicitement le projet Compose, le volume
+`N8N_DATA_VOLUME` actuellement monté et `N8N_SECURITY_DIR` à côté du `.env` ; ne pas
+laisser les valeurs par défaut choisir un autre volume.
 Conserver la restriction loopback même lors d'un retour applicatif. Une image
 ancienne ne doit pas ouvrir une base déjà migrée : restaurer le snapshot cohérent
 avec son image et sa clé dans un volume contrôlé. Garder le marqueur anti-régression.
