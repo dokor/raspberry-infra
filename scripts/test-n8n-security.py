@@ -85,6 +85,12 @@ def main():
         check_model(merged)
         proxy = json.loads(run('docker', 'compose', '-f', 'infra/proxy/docker-compose.yml',
                               'config', '--format', 'json', env=env))
+        for service in [merged['services'][name] for name in ('n8n', 'task-runners', 'authelia')] + [
+                proxy['services'][name] for name in ('traefik', 'docker-socket-proxy')]:
+            manifest = json.loads(run('docker', 'buildx', 'imagetools', 'inspect', '--raw', service['image']))
+            assert any(m.get('platform', {}).get('architecture') == 'arm64'
+                       for m in manifest.get('manifests', [])), f"ARM64 missing: {service['image']}"
+        print('PASS: all production images include ARM64', flush=True)
         authelia_image = merged['services']['authelia']['image']
         digest = run('docker', 'run', '--rm', authelia_image, 'authelia', 'crypto', 'hash',
                      'generate', 'argon2', '--password', 'Synthetic-CI-only-password!')

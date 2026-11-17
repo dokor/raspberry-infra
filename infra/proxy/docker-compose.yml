@@ -41,7 +41,7 @@ services:
       traefik.enable: "false"
 
   docker-socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.5.0
+    image: ghcr.io/tecnativa/docker-socket-proxy@sha256:fd989c12c74edb8424f53f31a2054459f286967c93e113e91ea95432f066493b
     restart: unless-stopped
     environment:
       CONTAINERS: "1"

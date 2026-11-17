@@ -33,7 +33,7 @@ sur l'hôte avant l'ouverture de n8n. Il ne doit pas être accessible depuis Int
 1. Vérifier l'OS, Docker/Compose (>= 2.24.4), l'heure/NTP, l'espace disque, la
    version n8n installée et les avis de sécurité de toutes les images. Versions
    proposées le 17/11/2026 : n8n/runners 2.47.7, Authelia 4.39.28, Traefik 3.7.19,
-   socket-proxy 0.5.0. Ne pas rétrograder une instance plus récente. Tester toute
+   socket-proxy LTS épinglé par digest multiarchitecture. Ne pas rétrograder une instance plus récente. Tester toute
    migration de base sur une **copie**, surtout depuis n8n 1.x.
 2. Relever le projet Compose, le volume n8n et la clé de chiffrement existants.
    Conserver exactement cette clé et ce volume. Ne pas afficher le contenu du `.env`,
