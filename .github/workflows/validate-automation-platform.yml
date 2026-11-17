@@ -9,6 +9,7 @@ on:
       - ".github/workflows/deploy-n8n.yml"
       - ".github/workflows/deploy-automations.yml"
       - ".github/workflows/validate-automation-platform.yml"
+      - "scripts/n8n-*.mjs"
   push:
     branches: ["main"]
     paths:
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/deploy-n8n.yml"
       - ".github/workflows/deploy-automations.yml"
       - ".github/workflows/validate-automation-platform.yml"
+      - "scripts/n8n-*.mjs"
 
 permissions:
   contents: read
@@ -30,6 +32,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Verify n8n deployment safeguards
+        run: node --test scripts/n8n-*.test.mjs
 
       - name: Validate central n8n compose
         env:
