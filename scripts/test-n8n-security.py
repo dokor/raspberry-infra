@@ -110,7 +110,9 @@ def main():
                     labels[key.removesuffix('.certresolver')] = 'true'
             if 'traefik.docker.network' in labels:
                 labels['traefik.docker.network'] = 'security-test-ingress'
-        services['n8n']['ports'] = ['127.0.0.1:15678:5678']
+        # No host binding in this fixture: every n8n network is internal to deny egress.
+        # The production loopback binding is checked in the merged Compose model.
+        services['n8n'].pop('ports', None)
         services['traefik']['ports'] = ['127.0.0.1:8080:80', '127.0.0.1:8443:443']
         services['traefik']['volumes'] = [f'{tmp}/traefik.yml:/traefik.yml:ro',
             f'{dynamic}:/etc/traefik/dynamic:ro', f'{tmp}:/test:ro']
@@ -128,7 +130,15 @@ def main():
             return run(*prefix, *args)
 
         def request(path='/', extra=(), body=None, cookies=False, internal=False):
-            url = ('http://127.0.0.1:15678' if internal else 'https://n8n.lelouet.fr:8443') + path
+            if internal:
+                options = {'method': 'GET' if body is None else 'POST'}
+                if body is not None:
+                    options.update({'headers': {'Content-Type': 'application/json'}, 'body': json.dumps(body)})
+                source = ('fetch(' + json.dumps('http://127.0.0.1:5678' + path) + ', ' + json.dumps(options)
+                          + ').then(async r=>console.log(JSON.stringify({status:r.status,body:await r.text()})))')
+                result = json.loads(compose('exec', '-T', 'n8n', 'node', '-e', source))
+                return result['status'], '', result['body']
+            url = 'https://n8n.lelouet.fr:8443' + path
             command = ['curl', '--silent', '--show-error', '--noproxy', '*', '--max-time', '10',
                        '--path-as-is', '--cacert', str(tmp / 'cert.pem'),
                        '--resolve', 'n8n.lelouet.fr:8443:127.0.0.1',
